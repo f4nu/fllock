@@ -1,0 +1,45 @@
+{
+    "name": "f4nu/fllock",
+    "description": "Record locking for Filament: one editor at a time, guarding every path Filament can write through.",
+    "keywords": ["laravel", "filament", "locking", "concurrency"],
+    "license": "MIT",
+    "require": {
+        "php": "^8.3",
+        "filament/filament": "^5.0",
+        "illuminate/contracts": "^12.0|^13.0",
+        "spatie/laravel-package-tools": "^1.16"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.13",
+        "orchestra/testbench": "^10.0|^11.0",
+        "pestphp/pest": "^4.0",
+        "pestphp/pest-plugin-laravel": "^4.0",
+        "pestphp/pest-plugin-livewire": "^4.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "F4nu\\Fllock\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "F4nu\\Fllock\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/pest",
+        "lint": "vendor/bin/pint"
+    },
+    "extra": {
+        "laravel": {
+            "providers": ["F4nu\\Fllock\\FllockServiceProvider"]
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

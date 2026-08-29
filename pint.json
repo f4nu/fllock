@@ -1,0 +1,28 @@
+{
+    "preset": "psr12",
+    "rules": {
+        "braces_position": {
+            "classes_opening_brace": "same_line",
+            "functions_opening_brace": "same_line"
+        },
+        "not_operator_with_space": false,
+        "not_operator_with_successor_space": false,
+        "new_with_parentheses": {
+            "anonymous_class": false
+        },
+        "array_indentation": true,
+        "method_chaining_indentation": true,
+        "trailing_comma_in_multiline": {
+            "elements": [
+                "arrays"
+            ]
+        },
+        "single_quote": {
+            "strings_containing_single_quote_chars": false
+        },
+        "no_unneeded_braces": true,
+        "spaces_inside_parentheses": {
+            "space": "none"
+        }
+    }
+}

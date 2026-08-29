@@ -1,0 +1,54 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration {
+    public function up(): void {
+        $users = $this->usersTable();
+
+        Schema::create(config('fllock.table', 'record_locks'), function (Blueprint $table) use ($users) {
+            $table->id();
+
+            // The constraint is declared inline rather than added afterwards:
+            // SQLite cannot ALTER a foreign key in, so a migration that did it
+            // that way would pass on MySQL and quietly skip on SQLite -- which
+            // is what most package test suites run on.
+            //
+            // cascadeOnDelete is the part that matters. Deleting a member of
+            // staff must not fail because they left a lock behind.
+            $column = $table->foreignId('user_id');
+
+            if ($users !== null) {
+                $column->constrained($users)->cascadeOnDelete();
+            }
+
+            // Not morphs(): that is an unsignedBigInteger, and plenty of models
+            // are keyed by uuid or ulid. MySQL and MariaDB truncate those to a
+            // warning rather than an error, so every such record quietly shares
+            // one lock row.
+            $table->string('lockable_type');
+            $table->string('lockable_id');
+
+            $table->timestamps();
+
+            $table->index(['lockable_type', 'lockable_id']);
+        });
+    }
+
+    public function down(): void {
+        Schema::dropIfExists(config('fllock.table', 'record_locks'));
+    }
+
+    /** The table the configured user model lives in, if it is there yet. */
+    private function usersTable(): ?string {
+        $model = config('fllock.user_model');
+
+        $table = is_string($model) && class_exists($model)
+            ? (new $model)->getTable()
+            : 'users';
+
+        return Schema::hasTable($table) ? $table : null;
+    }
+};
