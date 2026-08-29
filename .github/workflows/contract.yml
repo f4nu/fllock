@@ -52,6 +52,9 @@ jobs:
         run: |
           php ../fllock/.github/scripts/mount-fixtures.php
           composer dump-autoload
+          # The fixtures bring their own users table, so Laravel's has to go or
+          # both run and the second fails.
+          rm -f database/migrations/0001_01_01_000000_create_users_table.php
           cp ../fllock/tests/Fixtures/Database/migrations/*.php database/migrations/
           cp ../fllock/tests/Contract/ContractTest.php tests/Feature/FllockContractTest.php
           php artisan vendor:publish --tag=fllock-config --no-interaction

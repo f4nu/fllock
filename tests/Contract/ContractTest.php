@@ -1,6 +1,7 @@
 <?php
 
 use F4nu\Fllock\Testing\LockingContract;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use F4nu\Fllock\Tests\Fixtures\User;
 
 /*
@@ -24,6 +25,10 @@ use F4nu\Fllock\Tests\Fixtures\User;
 | a real Laravel app per Filament version in the matrix. The model-level suite
 | beside this one stays on Testbench, where it is honest and fast.
 */
+
+// Declared here rather than in a Pest.php, so the file works unchanged when a
+// host application copies it in.
+uses(RefreshDatabase::class);
 
 $fixtures = is_dir(__DIR__ . '/../Fixtures/Filament')
     ? __DIR__ . '/../Fixtures/Filament'
