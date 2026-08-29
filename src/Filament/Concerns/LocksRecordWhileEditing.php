@@ -107,6 +107,17 @@ trait LocksRecordWhileEditing {
     }
 
     /**
+     * Save and Cancel go too. Disabling the fields without removing these
+     * leaves a page that looks editable and refuses at the last step -- and the
+     * refusal is server-side, so the only feedback is the click doing nothing.
+     *
+     * @return array<mixed>
+     */
+    protected function getFormActions(): array {
+        return $this->isReadOnly ? [] : parent::getFormActions();
+    }
+
+    /**
      * Read-only means read-only: Delete and every other header action goes.
      *
      * What replaces them is the one action that makes sense on a record you

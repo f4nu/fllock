@@ -209,9 +209,17 @@ class LockingContract {
                 $component = $contract->openEditPage($page, $record, $second)
                     ->assertSet('isReadOnly', true);
 
+                // Only the take-over action may survive up there.
                 foreach ($component->instance()->getCachedHeaderActions() as $action) {
                     expect($action->getName())->toBe('fllockForceUnlock');
                 }
+
+                // And Save must be gone, not merely inert: a page that looks
+                // editable and refuses on click gives no feedback at all.
+                $formActions = (fn () => $this->getFormActions())
+                    ->call($component->instance());
+
+                expect($formActions)->toBe([]);
             })->with($contract->editPages());
 
             it('stays disabled when the schema is rebuilt', function (string $page) use ($contract) {
