@@ -52,7 +52,12 @@ jobs:
         run: |
           # The fixtures stay in the package and are autoloaded from there:
           # copying them would break their PSR-4 namespace.
-          composer config autoload-dev.psr-4 --json '{"F4nu\\Fllock\\Tests\\": "../fllock/tests/"}'
+          php -r '
+            $f = "composer.json";
+            $j = json_decode(file_get_contents($f), true);
+            $j["autoload-dev"]["psr-4"]["F4nu\\Fllock\\Tests\\"] = "../fllock/tests/";
+            file_put_contents($f, json_encode($j, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+          '
           composer dump-autoload
           php -r '
             $f = "bootstrap/providers.php";
