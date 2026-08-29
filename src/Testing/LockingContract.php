@@ -26,6 +26,8 @@ use ReflectionClass;
  * filesystem and drives each one. A resource added later is covered without
  * anybody remembering to add it; a resource that forgets a trait fails by name.
  *
+ * Requires Pest: the suite is declared through its functional API.
+ *
  * Usage, in one test file:
  *
  *     use F4nu\Fllock\Testing\LockingContract;

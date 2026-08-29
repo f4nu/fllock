@@ -25,10 +25,11 @@ use F4nu\Fllock\Tests\Fixtures\User;
 | beside this one stays on Testbench, where it is honest and fast.
 */
 
-LockingContract::for(
-    __DIR__ . '/../Fixtures/Filament',
-    'F4nu\Fllock\Tests\Fixtures\Filament',
-)
+$fixtures = is_dir(__DIR__ . '/../Fixtures/Filament')
+    ? __DIR__ . '/../Fixtures/Filament'
+    : dirname(__DIR__, 3) . '/fllock/tests/Fixtures/Filament';
+
+LockingContract::for($fixtures, 'F4nu\Fllock\Tests\Fixtures\Filament')
     ->editors(fn (): array => [
         User::factory()->create(['name' => 'First Editor']),
         User::factory()->create(['name' => 'Second Editor']),

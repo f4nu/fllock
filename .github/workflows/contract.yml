@@ -15,7 +15,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        filament: ['^5.0', 'dev-main']
+        # Filament publishes branch aliases, not dev-main.
+        filament: ['^5.0', '5.x-dev']
 
     name: Filament ${{ matrix.filament }}
 
@@ -35,17 +36,38 @@ jobs:
       # pages, so the suite that proves them runs against a real application.
       - name: Scaffold an application
         run: |
-          composer create-project laravel/laravel app --no-interaction
+          composer create-project laravel/laravel app --no-interaction --quiet
           cd app
           composer config repositories.fllock path ../fllock
+          composer config minimum-stability dev
+          composer config prefer-stable true
           composer require "filament/filament:${{ matrix.filament }}" "f4nu/fllock:@dev" --no-interaction
-          php artisan vendor:publish --tag=fllock-migrations --no-interaction
+          # LockingContract declares tests through Pest's functional API, and
+          # laravel/laravel ships PHPUnit.
+          composer require --dev pestphp/pest pestphp/pest-plugin-laravel --no-interaction
+          ./vendor/bin/pest --init || true
 
-      - name: Install the fixture panel
+      - name: Mount the fixture panel
+        working-directory: app
         run: |
-          cp -r fllock/tests/Fixtures app/tests/Fllock
-          cp fllock/tests/Contract/ContractTest.php app/tests/Feature/FllockContractTest.php
+          # The fixtures stay in the package and are autoloaded from there:
+          # copying them would break their PSR-4 namespace.
+          composer config autoload-dev.psr-4 --json '{"F4nu\\Fllock\\Tests\\": "../fllock/tests/"}'
+          composer dump-autoload
+          php -r '
+            $f = "bootstrap/providers.php";
+            $s = file_get_contents($f);
+            $s = str_replace(
+              "];",
+              "    F4nu\\\\Fllock\\\\Tests\\\\Fixtures\\\\AdminPanelProvider::class,\n];",
+              $s
+            );
+            file_put_contents($f, $s);
+          '
+          cp ../fllock/tests/Fixtures/Database/migrations/*.php database/migrations/
+          cp ../fllock/tests/Contract/ContractTest.php tests/Feature/FllockContractTest.php
+          php artisan vendor:publish --tag=fllock-config --no-interaction
 
       - name: Test
         working-directory: app
-        run: php artisan test --filter=Fllock
+        run: ./vendor/bin/pest tests/Feature/FllockContractTest.php
