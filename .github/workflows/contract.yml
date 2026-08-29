@@ -50,25 +50,8 @@ jobs:
       - name: Mount the fixture panel
         working-directory: app
         run: |
-          # The fixtures stay in the package and are autoloaded from there:
-          # copying them would break their PSR-4 namespace.
-          php -r '
-            $f = "composer.json";
-            $j = json_decode(file_get_contents($f), true);
-            $j["autoload-dev"]["psr-4"]["F4nu\\Fllock\\Tests\\"] = "../fllock/tests/";
-            file_put_contents($f, json_encode($j, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
-          '
+          php ../fllock/.github/scripts/mount-fixtures.php
           composer dump-autoload
-          php -r '
-            $f = "bootstrap/providers.php";
-            $s = file_get_contents($f);
-            $s = str_replace(
-              "];",
-              "    F4nu\\\\Fllock\\\\Tests\\\\Fixtures\\\\AdminPanelProvider::class,\n];",
-              $s
-            );
-            file_put_contents($f, $s);
-          '
           cp ../fllock/tests/Fixtures/Database/migrations/*.php database/migrations/
           cp ../fllock/tests/Contract/ContractTest.php tests/Feature/FllockContractTest.php
           php artisan vendor:publish --tag=fllock-config --no-interaction
