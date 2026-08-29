@@ -55,7 +55,12 @@ jobs:
           # The fixtures bring their own users table, so Laravel's has to go or
           # both run and the second fails.
           rm -f database/migrations/0001_01_01_000000_create_users_table.php
-          cp ../fllock/tests/Fixtures/Database/migrations/*.php database/migrations/
+          # Only the fixture tables. The lock table is published the way a host
+          # application would publish it -- the copy in tests/Fixtures is a shim
+          # that includes the stub by relative path and does not survive being
+          # moved.
+          cp ../fllock/tests/Fixtures/Database/migrations/*create_fixture_tables.php database/migrations/
+          php artisan vendor:publish --tag=fllock-migrations --no-interaction
           cp ../fllock/tests/Contract/ContractTest.php tests/Feature/FllockContractTest.php
           php artisan vendor:publish --tag=fllock-config --no-interaction
 
