@@ -16,7 +16,6 @@ use Filament\Schemas\SchemasServiceProvider;
 use Filament\Support\SupportServiceProvider;
 use Filament\Tables\TablesServiceProvider;
 use Filament\Widgets\WidgetsServiceProvider;
-use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\MessageBag;
 use Illuminate\Support\ViewErrorBag;
 use Livewire\LivewireServiceProvider;
@@ -35,9 +34,6 @@ class TestCase extends Orchestra {
         $this->startSession();
         view()->share('errors', (new ViewErrorBag())->put('default', new MessageBag()));
 
-        Factory::guessFactoryNamesUsing(
-            fn (string $model): string => 'F4nu\\Fllock\\Tests\\Fixtures\\Database\\Factories\\' . class_basename($model) . 'Factory',
-        );
     }
 
     protected function getPackageProviders($app): array {
