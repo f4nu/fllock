@@ -44,7 +44,7 @@ jobs:
           composer require "filament/filament:${{ matrix.filament }}" "f4nu/fllock:@dev" --no-interaction
           # LockingContract declares tests through Pest's functional API, and
           # laravel/laravel ships PHPUnit.
-          composer require --dev pestphp/pest pestphp/pest-plugin-laravel --no-interaction
+          composer require --dev "pestphp/pest:^4.0" "pestphp/pest-plugin-laravel:^4.0" --no-interaction -W
           ./vendor/bin/pest --init || true
 
       - name: Mount the fixture panel
