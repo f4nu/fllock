@@ -1,3 +1,8 @@
+---
+title: Releasing a lock
+nav_order: 4
+---
+
 # Releasing a lock
 
 Four ways, in the order they usually happen.

@@ -1,0 +1,18 @@
+title: fllock
+description: Record locking for Filament. One editor at a time, on every path Filament can write through.
+
+remote_theme: just-the-docs/just-the-docs
+
+url: https://f4nu.github.io
+baseurl: /fllock
+
+aux_links:
+  GitHub: https://github.com/f4nu/fllock
+
+color_scheme: dark
+search_enabled: true
+
+# The repository README is the landing page, so it is not part of the site.
+exclude:
+  - Gemfile
+  - Gemfile.lock

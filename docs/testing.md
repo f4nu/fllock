@@ -1,3 +1,8 @@
+---
+title: Testing your panel
+nav_order: 6
+---
+
 # Testing your panel
 
 The suite that proves the guards ships with the package, and it enumerates. It reads
@@ -37,7 +42,7 @@ For every record page, list page, relation manager and settings page it finds:
 ## Excluding a page
 
 ```php
-->except(['Backups', 'StreamCommander'])
+->except(['Backups', 'LiveDashboard'])
 ```
 
 Use it for a page that genuinely must not lock, and write down why at the call. An
@@ -53,8 +58,8 @@ are not, and the resource that breaks is always the one with the unusual table.
 The enumerated suite found, on its own:
 
 - uuid keyed records sharing a single lock row, on its first run
-- `EventLiveManagement`, an `EditRecord` not named `Edit*`, which a filename glob missed
-- `ReadDonation`, a "view" page carrying four writing actions inside an infolist section
+- a page extending `EditRecord` but not named `Edit*`, which a filename glob missed
+- a `ViewRecord` page carrying four writing actions inside an infolist section
 
 That last one is why pages that can write are detected by asking the rendered page what
 it can be told to do, rather than by what it extends. That assumption was wrong twice.

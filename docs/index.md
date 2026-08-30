@@ -1,9 +1,12 @@
+---
+title: Home
+nav_order: 1
+---
+
 # fllock
 
 **F**ilament **L**aravel **Lock**. Record locking for Filament: one editor at a time, on
 every path Filament can write through.
-
-Documentation: <https://f4nu.github.io/fllock>
 
 Open a record and it is yours while you have it. Anyone else who opens it gets the page
 read only, with a banner naming who holds it and a button to take it over if they are
@@ -39,22 +42,7 @@ use F4nu\Fllock\FllockPlugin;
 $panel->plugin(FllockPlugin::make());
 ```
 
-Then put the traits on your models and pages. See [docs/usage.md](docs/usage.md).
-
-## Documentation
-
-Full docs at <https://f4nu.github.io/fllock>, or read them in `docs/`:
-
-- [Usage](docs/usage.md). Which trait goes where, and the table indicator.
-- [How it works](docs/how-it-works.md). The lock row, the heartbeat, and every write
-  path that is guarded.
-- [Releasing a lock](docs/releasing.md). The four ways a lock lets go, and the sweep.
-- [Writes from outside the panel](docs/external-writes.md). Why the API always wins, and
-  what stops a stale form overwriting it.
-- [Testing your panel](docs/testing.md). The enumerated contract suite that ships with
-  the package.
-- [Configuration](docs/configuration.md). Every option and what it costs to change.
-- [Limits](docs/limits.md). What this does not do, and the two blind spots it has.
+Then put the traits on your models and pages: see [Usage](usage.md).
 
 ## Requirements
 
@@ -68,7 +56,3 @@ fork: the guard layer grew larger than the package it was patching.
 
 [kenepa]: https://github.com/kenepa/resource-lock
 [blendbyte]: https://github.com/blendbyte/filament-resource-lock
-
-## License
-
-MIT.

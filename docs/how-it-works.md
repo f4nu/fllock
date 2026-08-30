@@ -1,3 +1,8 @@
+---
+title: How it works
+nav_order: 3
+---
+
 # How it works
 
 ## The lock row

@@ -1,3 +1,8 @@
+---
+title: Writes from outside the panel
+nav_order: 5
+---
+
 # Writes from outside the panel
 
 The API, a console command and a queued job write whenever they like. None of them

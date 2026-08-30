@@ -1,3 +1,8 @@
+---
+title: Usage
+nav_order: 2
+---
+
 # Usage
 
 Three kinds of surface need three different traits, because a Filament panel has three
@@ -57,12 +62,12 @@ record's own lock, so every page editing one record contends for one lock.
 ```php
 use F4nu\Fllock\Filament\Concerns\LocksRecordOnPage;
 
-class EventPlanning extends Page {
+class OrderPlanner extends Page {
     use LocksRecordOnPage;
 
     // Only if the page does not call it $record.
     protected function lockedRecord(): ?Model {
-        return $this->event;
+        return $this->order;
     }
 }
 ```
@@ -75,7 +80,7 @@ keyed on the page class.
 ```php
 use F4nu\Fllock\Filament\Concerns\LocksPageWhileEditing;
 
-class TwitchSettings extends Page {
+class IntegrationSettings extends Page {
     use LocksPageWhileEditing;
 }
 ```
@@ -97,7 +102,7 @@ public static function table(Table $table): Table {
 That tints locked rows, marks them with a stripe, and puts a lock before the value of
 the column that identifies the row, naming the holder on hover.
 
-Which column, in order: whatever you name (`mark($table, 'game_title')`), else the
+Which column, in order: whatever you name (`mark($table, 'title')`), else the
 table's own `recordTitleAttribute`, else the first text column. If there is no column to
 hang it on the row tint still says everything except who has it.
 

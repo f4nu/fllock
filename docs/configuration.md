@@ -1,3 +1,8 @@
+---
+title: Configuration
+nav_order: 7
+---
+
 # Configuration
 
 ```bash
@@ -86,8 +91,8 @@ Super Admin passing `Gate::before` gets through without being granted anything.
 
 `permitted_actions` is an allowlist, deliberately. Written as a denylist it misses every
 custom action an app adds, which is exactly the one nobody remembers to list. Add an
-action here when it writes something other than the locked record: a vote on a
-submission writes a vote row, not the submission, so it collides with nobody.
+action here when it writes something other than the locked record: a "vote" action that writes a vote row rather than the record itself collides with
+nobody.
 
 `permitted_methods` are the reads that still go through on a page that refuses every
 other Livewire call: paging, sorting, filtering. Take one out and read only becomes

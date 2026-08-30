@@ -1,3 +1,8 @@
+---
+title: Limits
+nav_order: 8
+---
+
 # Limits
 
 ## What it does not do
