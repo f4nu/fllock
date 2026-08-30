@@ -33,6 +33,14 @@ class FllockPlugin implements Plugin {
         // component out of band, which trips Livewire's validation support when
         // it happens inside another component's render -- every Filament page
         // then dies on render under a Livewire test.
+        // A <style> tag rather than a published stylesheet: it is fifteen lines,
+        // and an asset needing `filament:assets` on deploy is a step every host
+        // application has to remember for a tint.
+        $panel->renderHook(
+            'panels::head.end',
+            fn (): HtmlString => new HtmlString(static::styles()),
+        );
+
         $panel->renderHook(
             'panels::body.end',
             fn (): HtmlString => new HtmlString(Blade::render('@livewire(\'fllock-observer\')')),
@@ -40,5 +48,52 @@ class FllockPlugin implements Plugin {
     }
 
     public function boot(Panel $panel): void {
+    }
+
+    /**
+     * The row treatment for a locked record.
+     *
+     * Amber, not red: red is what a table uses for something that went wrong,
+     * and a row somebody is editing has not gone wrong. The stripe matters as
+     * much as the tint -- colour alone is no use to a reader who cannot see
+     * this particular colour, and easy to miss on a crowded table besides.
+     */
+    protected static function styles(): string {
+        return <<<'CSS'
+            <style>
+                .fllock-row > td:first-child,
+                .fllock-row > th:first-child {
+                    position: relative;
+                }
+
+                .fllock-row > td:first-child::before,
+                .fllock-row > th:first-child::before {
+                    content: '';
+                    position: absolute;
+                    inset-inline-start: 0;
+                    top: 0;
+                    bottom: 0;
+                    width: 3px;
+                }
+
+                .fllock-row-theirs {
+                    background-color: rgb(245 158 11 / 0.06);
+                }
+
+                .fllock-row-theirs > td:first-child::before,
+                .fllock-row-theirs > th:first-child::before {
+                    background-color: rgb(245 158 11 / 0.7);
+                }
+
+                .fllock-row-mine > td:first-child::before,
+                .fllock-row-mine > th:first-child::before {
+                    background-color: rgb(148 163 184 / 0.7);
+                }
+
+                .dark .fllock-row-theirs {
+                    background-color: rgb(245 158 11 / 0.1);
+                }
+            </style>
+            CSS;
     }
 }

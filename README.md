@@ -109,14 +109,29 @@ rather than trying to name the ways such a page writes — see
 `config/fllock.php`'s `permitted_methods` for the reads that still go through,
 and add your page's own.
 
-Optionally, a lock indicator in tables:
+Showing which rows are taken:
 
 ```php
-use F4nu\Fllock\Filament\Concerns\EagerLoadsRecordLocks;   // on the list page
-use F4nu\Fllock\Filament\Tables\Columns\RecordLockColumn;  // in the table
+use F4nu\Fllock\Filament\Concerns\EagerLoadsRecordLocks;  // on the list page
+use F4nu\Fllock\Filament\Tables\RecordLockIndicator;
 
-RecordLockColumn::make(),
+$table
+    // Tints the row and marks it with a stripe down the left.
+    ->recordClasses(RecordLockIndicator::rowClasses())
+    ->columns([
+        // And puts a lock before the value, naming the holder on hover.
+        RecordLockIndicator::on(TextColumn::make('title')),
+    ]);
 ```
+
+The tint is amber rather than red, because red is what a table uses for
+something that went wrong and a row somebody is editing has not gone wrong; and
+it carries a stripe as well, because colour alone is no use to a reader who
+cannot see that colour.
+
+`RecordLockColumn::make()` is still there if you would rather spend a column on
+it, but a column is a header, a width and a rule on every table in the panel,
+carrying nothing most of the time.
 
 ## Test your own panel
 
