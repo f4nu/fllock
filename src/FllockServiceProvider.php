@@ -3,9 +3,7 @@
 namespace F4nu\Fllock;
 
 use F4nu\Fllock\Commands\ClearExpiredLocksCommand;
-use F4nu\Fllock\Livewire\RecordLockObserver;
 use Illuminate\Console\Scheduling\Schedule;
-use Livewire\Livewire;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 
@@ -21,8 +19,6 @@ class FllockServiceProvider extends PackageServiceProvider {
     }
 
     public function packageBooted(): void {
-        Livewire::component('fllock-observer', RecordLockObserver::class);
-
         $this->scheduleExpiredLockSweep();
     }
 
