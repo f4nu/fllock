@@ -5,8 +5,15 @@ namespace F4nu\Fllock\Tests\Fixtures;
 use F4nu\Fllock\FllockPlugin;
 use Filament\Panel;
 use Filament\PanelProvider;
+use Illuminate\Support\Facades\View;
 
 class AdminPanelProvider extends PanelProvider {
+    public function register(): void {
+        parent::register();
+
+        View::addNamespace('fllock-fixtures', __DIR__ . '/views');
+    }
+
     public function panel(Panel $panel): Panel {
         return $panel
             ->default()

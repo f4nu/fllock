@@ -14,7 +14,7 @@ use Filament\Pages\Page;
 class Settings extends Page {
     use LocksPageWhileEditing;
 
-    protected string $view = 'fllock::observer';
+    protected string $view = 'fllock-fixtures::settings';
 
     public ?string $probe = null;
 
