@@ -85,8 +85,15 @@ class IntegrationSettings extends Page {
 }
 ```
 
-Two pages editing the same settings should override `recordLockSubject()` to return the
-same string, or each locks its own view of one shared thing.
+The subject is the page class by default. Two pages editing the same settings should
+override `recordLockSubject()` to return the same string, or each locks its own view of
+one shared thing:
+
+```php
+protected function recordLockSubject(): string {
+    return 'integration-settings';
+}
+```
 
 ## Showing which rows are taken
 

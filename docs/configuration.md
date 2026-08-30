@@ -57,46 +57,66 @@ as the tab is open, which is not the same as somebody being there.
 'owner_name_attribute' => 'name',
 ```
 
-`owner_name_attribute` is what the banner and tooltips show. Use `email` if names are
-not unique enough to identify a colleague.
+`owner_name_attribute` is the column on your user model that the banner and tooltips
+show. `name` by default; use `email` if names are not unique enough to identify a
+colleague, or any other column your users table has.
 
 ## Permissions
 
 ```php
-'unlock_gate' => null,
+'unlock_gate' => 'manage-locks',
 'manager' => [
     'enabled' => true,
-    'gate' => null,
-    'navigation_group' => null,
+    'gate' => 'manage-locks',
+    'navigation_group' => 'Settings',
     'navigation_icon' => 'heroicon-o-lock-closed',
-    'navigation_sort' => null,
+    'navigation_sort' => 20,
 ],
 ```
 
-`unlock_gate` guards taking a record over. Null means anyone who can reach the page can
-do it. Taking a record discards whatever the current editor has typed and not saved, so
-this is worth setting.
+`unlock_gate` guards taking a record over. Give it the name of a Gate ability or a
+Spatie permission, as above. Both go through `Gate::allows($name)`, so either works
+without further wiring, and a Super Admin who passes `Gate::before` gets through without
+being granted anything.
 
-Both gates go through `Gate::allows`, so a Spatie permission name works directly, and a
-Super Admin passing `Gate::before` gets through without being granted anything.
+Taking a record discards whatever the current editor has typed and not saved, so this is
+worth setting. Left null, anyone who can reach the page can do it.
 
-`manager.enabled` false drops the lock manager page and keeps the locking.
+`manager.gate` guards the lock manager page the same way. Clearing a lock there is the
+same forced unlock, so it usually wants the same name.
+
+`manager.navigation_group` and `navigation_sort` place the page in your sidebar, and
+take whatever your panel already uses for its groups. Left null the page sits ungrouped,
+at the end.
+
+`manager.enabled` false drops the page and keeps the locking.
 
 ## What may run against a locked record
 
+`permitted_actions` holds action names, as passed to `Action::make()`:
+
 ```php
-'permitted_actions' => ['view'],
-'permitted_methods' => ['gotoPage', 'nextPage', ...],
+'permitted_actions' => ['view', 'vote', 'export'],
 ```
 
-`permitted_actions` is an allowlist, deliberately. Written as a denylist it misses every
-custom action an app adds, which is exactly the one nobody remembers to list. Add an
-action here when it writes something other than the locked record: a "vote" action that writes a vote row rather than the record itself collides with
-nobody.
+It is an allowlist deliberately. Written as a denylist it misses every custom action an
+app adds, which is exactly the one nobody remembers to list. Add an action here when it
+writes something other than the locked record. An action recording a vote in its own
+table collides with nobody editing the record; one clearing a flag on the record itself
+does.
 
-`permitted_methods` are the reads that still go through on a page that refuses every
-other Livewire call: paging, sorting, filtering. Take one out and read only becomes
-broken. Add your own page's read only methods.
+`permitted_methods` holds Livewire method names, and applies to the pages that refuse
+every other call:
+
+```php
+'permitted_methods' => [
+    'gotoPage', 'nextPage', 'previousPage', 'setPage', 'resetPage',
+    'sortTable', 'applyTableFilters',
+    'exportSchedule',   // your own read only methods go here
+],
+```
+
+These are the reads. Take one out and read only becomes broken rather than read only.
 
 ## The sweep
 
@@ -104,8 +124,14 @@ broken. Add your own page's read only methods.
 'sweep_expired' => true,
 ```
 
-Schedules `fllock:clear-expired` hourly. Set false to schedule it yourself. Nothing
-depends on it running; see [releasing a lock](releasing.md#the-sweep).
+Schedules `fllock:clear-expired` hourly. Set it false to choose your own frequency:
+
+```php
+// routes/console.php
+Schedule::command('fllock:clear-expired')->everySixHours();
+```
+
+Nothing depends on it running; see [releasing a lock](releasing.md#the-sweep).
 
 ## Translations
 
