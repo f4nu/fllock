@@ -86,13 +86,11 @@ trait LocksRecordOnPage {
     protected function fllockIsLockedByAnother(): bool {
         $record = $this->lockedRecord();
 
-        if ($record === null || ! method_exists($record, 'isLockedByAnotherUser')) {
+        if ($record === null || ! method_exists($record, 'isLockedByAnotherUserFresh')) {
             return false;
         }
 
-        $record->refresh();
-
-        return $record->isLockedByAnotherUser();
+        return $record->isLockedByAnotherUserFresh();
     }
 
     /**

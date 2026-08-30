@@ -55,6 +55,29 @@ trait HasRecordLock {
     }
 
     /**
+     * The same question, without disturbing the model.
+     *
+     * The obvious way to ask it freshly is `$record->refresh()`, and that is a
+     * trap on a page whose state is built from the record's relations: refresh
+     * discards them, so a page rebuilt mid-request works from a record that has
+     * forgotten what it loaded. It broke drag-to-reorder on a schedule planner,
+     * silently, because the guard runs on every single Livewire call.
+     *
+     * This reads the lock row and nothing else.
+     */
+    public function isLockedByAnotherUserFresh(): bool {
+        $lock = RecordLock::query()
+            ->where('lockable_type', $this->getMorphClass())
+            ->where('lockable_id', $this->getKey())
+            ->latest('id')
+            ->first();
+
+        return $lock !== null
+            && ! $lock->isExpired($this->recordLockTimeout())
+            && $lock->user_id !== auth()->id();
+    }
+
+    /**
      * Take the lock, or renew it if it is already ours.
      *
      * @return bool false when someone else holds it
