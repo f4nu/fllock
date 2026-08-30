@@ -120,6 +120,24 @@ class LockingContract {
     }
 
     /**
+     * Relation managers that register header actions, which is what the header
+     * action check needs. Built from a static read of the class rather than by
+     * booting one, because datasets are built before the application is.
+     *
+     * @return array<string, array{0: class-string}>
+     */
+    public function relationManagersWithHeaderActions(): array {
+        return array_filter(
+            $this->relationManagers(),
+            function (array $row): bool {
+                $file = (new ReflectionClass($row[0]))->getFileName();
+
+                return $file !== false && str_contains((string) file_get_contents($file), 'headerActions');
+            },
+        );
+    }
+
+    /**
      * Every class under the given path that extends $base.
      *
      * Walked recursively and filtered by what a class *is*, not by the folder
@@ -303,6 +321,40 @@ class LockingContract {
 
                 expect($record->fresh()->updated_at?->toString())->toBe($before);
             })->with($contract->listPages());
+            it('refuses every header action on a relation manager whose record is locked', function (string $manager) use ($contract) {
+                [$first, $second] = $contract->makeEditors();
+                $owner = $contract->makeRecord($contract->ownerModelOf($manager));
+
+                $contract->actingAs($first);
+                $owner->lock();
+
+                $contract->actingAs($second);
+
+                $mount = fn (): \Livewire\Features\SupportTesting\Testable => Livewire::test($manager, [
+                    'ownerRecord' => $owner,
+                    'pageClass' => $contract->pageClassFor($manager),
+                ]);
+
+                // The manager's own header actions, by name. Guessing at 'create'
+                // would pass against a manager whose action is called something
+                // else -- and a custom header action is exactly the case that
+                // was broken: it carries no record, so the row-level guards never
+                // see it, and Filament's isReadOnly() hides only its own
+                // CreateAction.
+                $names = collect($mount()->instance()->getTable()->getHeaderActions())
+                    ->map(fn ($action): string => $action->getName())
+                    ->all();
+
+                expect($names)->not->toBeEmpty(
+                    "{$manager} registers no header actions; drop it from this check or give it one",
+                );
+
+                foreach ($names as $name) {
+                    $mount()
+                        ->call('mountAction', $name, [], ['table' => true])
+                        ->assertSet('mountedActions', []);
+                }
+            })->with($contract->relationManagersWithHeaderActions());
         });
 
         describe('the traits every surface needs', function () use ($contract) {
@@ -330,6 +382,25 @@ class LockingContract {
     }
 
     // ------------------------------------------------------------------ helpers
+
+    /**
+     * The model a relation manager's owner record is, found through the
+     * resource whose namespace the manager sits in -- which is the only place
+     * a relation manager names what it belongs to.
+     */
+    public function ownerModelOf(string $manager): string {
+        return $this->resourceOf($manager)::getModel();
+    }
+
+    public function pageClassFor(string $manager): string {
+        $pages = $this->resourceOf($manager)::getPages();
+
+        return ($pages['edit'] ?? $pages['view'] ?? $pages['index'])->getPage();
+    }
+
+    protected function resourceOf(string $manager): string {
+        return substr($manager, 0, strrpos($manager, '\\RelationManagers\\'));
+    }
 
     /** @return array{0: Model, 1: Model} */
     public function makeEditors(): array {

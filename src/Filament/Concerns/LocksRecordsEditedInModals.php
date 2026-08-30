@@ -35,7 +35,19 @@ trait LocksRecordsEditedInModals {
 
         $record = $this->getLockableMountedRecord();
 
+        // A header action carries no record -- Create, or any custom action
+        // above the table. On a relation manager that does not make it safe:
+        // the lock that governs those rows is the one on the record the table
+        // hangs off, and adding a row to a locked record is still writing to it.
+        // Filament's own isReadOnly() hides CreateAction and nothing else, so a
+        // custom header action walks straight through.
         if ($record === null) {
+            if (! $this->isPermittedWhileLocked($name) && $this->isOwnerRecordLocked()) {
+                $this->unmountAction(cancelParentActions: false);
+
+                return null;
+            }
+
             return $result;
         }
 
@@ -55,6 +67,22 @@ trait LocksRecordsEditedInModals {
     }
 
     /**
+     * Whether this component's owner record is held by someone else.
+     *
+     * Only a relation manager has one; a list page returns false, since a
+     * header action there belongs to no record.
+     */
+    protected function isOwnerRecordLocked(): bool {
+        $owner = $this->ownerRecord ?? null;
+
+        if (! $this->isLockable($owner)) {
+            return false;
+        }
+
+        return $this->refuseLockedRecord($owner);
+    }
+
+    /**
      * Nothing renews a modal's lock while it sits open, so a slow edit can
      * outlive the timeout and let a second editor in. Re-checking here is what
      * stops both of them saving.
@@ -66,6 +94,12 @@ trait LocksRecordsEditedInModals {
         $name = $this->getMountedAction()?->getName();
 
         if ($record !== null && ! $this->isPermittedWhileLocked($name) && $this->refuseLockedRecord($record)) {
+            $this->unmountAction(cancelParentActions: false);
+
+            return null;
+        }
+
+        if ($record === null && ! $this->isPermittedWhileLocked($name) && $this->isOwnerRecordLocked()) {
             $this->unmountAction(cancelParentActions: false);
 
             return null;
