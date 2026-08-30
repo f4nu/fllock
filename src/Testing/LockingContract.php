@@ -280,215 +280,253 @@ class LockingContract {
     public function run(): void {
         $contract = $this;
 
+        // A panel need not have every kind of surface -- plenty have no
+        // hand-written record page, or no relation managers at all. Pest treats
+        // an empty dataset as a broken test rather than a vacuous one, so a
+        // group with nothing in it is not declared.
+        $when = fn (array $rows, callable $declare) => $rows === [] ? null : $declare($rows);
+
         describe('record locking', function () use ($contract) {
-            it('locks a record while its edit page is open', function (string $page) use ($contract) {
-                [$first] = $contract->makeEditors();
-                $record = $contract->makeRecord($page::getResource()::getModel());
+            $when($contract->editPages(), function (array $rows) use ($contract) {
+                it('locks a record while its edit page is open', function (string $page) use ($contract) {
+                    [$first] = $contract->makeEditors();
+                    $record = $contract->makeRecord($page::getResource()::getModel());
 
-                $contract->openEditPage($page, $record, $first);
+                    $contract->openEditPage($page, $record, $first);
 
-                expect($record->fresh()->isLocked())->toBeTrue();
-            })->with($contract->editPages());
+                    expect($record->fresh()->isLocked())->toBeTrue();
+                })->with($rows);
+            });
 
-            it('survives the heartbeat that renews the lock', function (string $page) use ($contract) {
-                [$first] = $contract->makeEditors();
-                $record = $contract->makeRecord($page::getResource()::getModel());
+            $when($contract->editPages(), function (array $rows) use ($contract) {
+                it('survives the heartbeat that renews the lock', function (string $page) use ($contract) {
+                    [$first] = $contract->makeEditors();
+                    $record = $contract->makeRecord($page::getResource()::getModel());
 
-                // Nothing in an ordinary Livewire test beats, so a listener that
-                // throws stays invisible until a real page has been open for one
-                // interval. That is how it shipped the first time.
-                $contract->openEditPage($page, $record, $first)
-                    ->dispatch('fllock::heartbeat')
-                    ->assertSet('isReadOnly', false)
-                    ->assertHasNoErrors();
+                    // Nothing in an ordinary Livewire test beats, so a listener that
+                    // throws stays invisible until a real page has been open for one
+                    // interval. That is how it shipped the first time.
+                    $contract->openEditPage($page, $record, $first)
+                        ->dispatch('fllock::heartbeat')
+                        ->assertSet('isReadOnly', false)
+                        ->assertHasNoErrors();
 
-                expect($record->fresh()->isLocked())->toBeTrue();
-            })->with($contract->editPages());
+                    expect($record->fresh()->isLocked())->toBeTrue();
+                })->with($rows);
+            });
 
-            it('goes read-only for a second editor, with no header actions left', function (string $page) use ($contract) {
-                [$first, $second] = $contract->makeEditors();
-                $record = $contract->makeRecord($page::getResource()::getModel());
+            $when($contract->editPages(), function (array $rows) use ($contract) {
+                it('goes read-only for a second editor, with no header actions left', function (string $page) use ($contract) {
+                    [$first, $second] = $contract->makeEditors();
+                    $record = $contract->makeRecord($page::getResource()::getModel());
 
-                $contract->openEditPage($page, $record, $first);
+                    $contract->openEditPage($page, $record, $first);
 
-                $component = $contract->openEditPage($page, $record, $second)
-                    ->assertSet('isReadOnly', true);
+                    $component = $contract->openEditPage($page, $record, $second)
+                        ->assertSet('isReadOnly', true);
 
-                // Only the take-over action may survive up there.
-                foreach ($component->instance()->getCachedHeaderActions() as $action) {
-                    expect($action->getName())->toBe('fllockForceUnlock');
-                }
+                    // Only the take-over action may survive up there.
+                    foreach ($component->instance()->getCachedHeaderActions() as $action) {
+                        expect($action->getName())->toBe('fllockForceUnlock');
+                    }
 
-                // And Save must be gone, not merely inert: a page that looks
-                // editable and refuses on click gives no feedback at all.
-                $formActions = (fn () => $this->getFormActions())
-                    ->call($component->instance());
+                    // And Save must be gone, not merely inert: a page that looks
+                    // editable and refuses on click gives no feedback at all.
+                    $formActions = (fn () => $this->getFormActions())
+                        ->call($component->instance());
 
-                expect($formActions)->toBe([]);
-            })->with($contract->editPages());
+                    expect($formActions)->toBe([]);
+                })->with($rows);
+            });
 
-            it('stays disabled when the schema is rebuilt', function (string $page) use ($contract) {
-                [$first, $second] = $contract->makeEditors();
-                $record = $contract->makeRecord($page::getResource()::getModel());
+            $when($contract->editPages(), function (array $rows) use ($contract) {
+                it('stays disabled when the schema is rebuilt', function (string $page) use ($contract) {
+                    [$first, $second] = $contract->makeEditors();
+                    $record = $contract->makeRecord($page::getResource()::getModel());
 
-                $contract->openEditPage($page, $record, $first);
+                    $contract->openEditPage($page, $record, $first);
 
-                $component = $contract->openEditPage($page, $record, $second);
+                    $component = $contract->openEditPage($page, $record, $second);
 
-                // Switching relation manager tabs rebuilds the schema. Disable
-                // the form imperatively and every field comes back to life here.
-                $component->set('activeRelationManager', 0)->assertSet('isReadOnly', true);
+                    // Switching relation manager tabs rebuilds the schema. Disable
+                    // the form imperatively and every field comes back to life here.
+                    $component->set('activeRelationManager', 0)->assertSet('isReadOnly', true);
 
-                expect($component->instance()->form->isDisabled())->toBeTrue();
-            })->with($contract->editPages());
+                    expect($component->instance()->form->isDisabled())->toBeTrue();
+                })->with($rows);
+            });
 
-            it('refuses a save from a second editor', function (string $page) use ($contract) {
-                [$first, $second] = $contract->makeEditors();
-                $record = $contract->makeRecord($page::getResource()::getModel());
+            $when($contract->editPages(), function (array $rows) use ($contract) {
+                it('refuses a save from a second editor', function (string $page) use ($contract) {
+                    [$first, $second] = $contract->makeEditors();
+                    $record = $contract->makeRecord($page::getResource()::getModel());
 
-                $contract->openEditPage($page, $record, $first);
+                    $contract->openEditPage($page, $record, $first);
 
-                $before = $record->fresh()->updated_at;
-                $contract->openEditPage($page, $record, $second)->call('save');
+                    $before = $record->fresh()->updated_at;
+                    $contract->openEditPage($page, $record, $second)->call('save');
 
-                expect($record->fresh()->updated_at?->toString())->toBe($before?->toString());
-            })->with($contract->editPages());
+                    expect($record->fresh()->updated_at?->toString())->toBe($before?->toString());
+                })->with($rows);
+            });
 
-            it('refuses a row modal on a locked record', function (string $page) use ($contract) {
-                [$first, $second] = $contract->makeEditors();
-                $record = $contract->makeRecord($page::getResource()::getModel());
+            $when($contract->listPages(), function (array $rows) use ($contract) {
+                it('refuses a row modal on a locked record', function (string $page) use ($contract) {
+                    [$first, $second] = $contract->makeEditors();
+                    $record = $contract->makeRecord($page::getResource()::getModel());
 
-                $contract->actingAs($first);
-                $record->lock();
+                    $contract->actingAs($first);
+                    $record->lock();
 
-                $contract->actingAs($second);
-                Livewire::test($page)
-                    ->call('mountAction', 'edit', [], [
-                        'recordKey' => (string) $record->getKey(),
-                        'table' => true,
-                    ])
-                    ->assertSet('mountedActions', []);
-            })->with($contract->listPages());
-
-            it('refuses an inline column write on a locked row', function (string $page) use ($contract) {
-                [$first, $second] = $contract->makeEditors();
-                $record = $contract->makeRecord($page::getResource()::getModel());
-
-                $contract->actingAs($first);
-                $record->lock();
-
-                $before = $record->fresh()->updated_at?->toString();
-
-                // Whether this table has an editable column today or not, the
-                // endpoint has to refuse: one added later must not reopen it.
-                $contract->actingAs($second);
-                Livewire::test($page)->call(
-                    'updateTableColumnState',
-                    $contract->probeColumn($record),
-                    (string) $record->getKey(),
-                    true,
-                );
-
-                expect($record->fresh()->updated_at?->toString())->toBe($before);
-            })->with($contract->listPages());
-
-            it('refuses reordering that touches a locked row', function (string $page) use ($contract) {
-                [$first, $second] = $contract->makeEditors();
-                $record = $contract->makeRecord($page::getResource()::getModel());
-
-                $contract->actingAs($first);
-                $record->lock();
-
-                $before = $record->fresh()->updated_at?->toString();
-
-                $contract->actingAs($second);
-                Livewire::test($page)->call('reorderTable', [(string) $record->getKey()]);
-
-                expect($record->fresh()->updated_at?->toString())->toBe($before);
-            })->with($contract->listPages());
-            it('refuses a bare property write on a locked settings page', function (string $page) use ($contract) {
-                [$first, $second] = $contract->makeEditors();
-
-                $contract->actingAs($first);
-                Livewire::test($page)->dispatch('fllock::init');
-
-                // Not an action, not a form, not a table: a public property with
-                // an updated hook is arbitrary application code, and every other
-                // guard is blind to it. Livewire runs trait hooks before the
-                // component's own, which is the only reason this can be stopped.
-                $contract->actingAs($second);
-                Livewire::test($page)
-                    ->dispatch('fllock::init')
-                    ->assertSet('isReadOnly', true);
-            })->with($contract->customPages());
-
-            it('refuses every header action on a relation manager whose record is locked', function (string $manager) use ($contract) {
-                [$first, $second] = $contract->makeEditors();
-                $owner = $contract->makeRecord($contract->ownerModelOf($manager));
-
-                $contract->actingAs($first);
-                $owner->lock();
-
-                $contract->actingAs($second);
-
-                $mount = fn (): \Livewire\Features\SupportTesting\Testable => Livewire::test($manager, [
-                    'ownerRecord' => $owner,
-                    'pageClass' => $contract->pageClassFor($manager),
-                ]);
-
-                // The manager's own header actions, by name. Guessing at 'create'
-                // would pass against a manager whose action is called something
-                // else -- and a custom header action is exactly the case that
-                // was broken: it carries no record, so the row-level guards never
-                // see it, and Filament's isReadOnly() hides only its own
-                // CreateAction.
-                $names = collect($mount()->instance()->getTable()->getHeaderActions())
-                    ->map(fn ($action): string => $action->getName())
-                    ->all();
-
-                expect($names)->not->toBeEmpty(
-                    "{$manager} registers no header actions; drop it from this check or give it one",
-                );
-
-                foreach ($names as $name) {
-                    $mount()
-                        ->call('mountAction', $name, [], ['table' => true])
+                    $contract->actingAs($second);
+                    Livewire::test($page)
+                        ->call('mountAction', 'edit', [], [
+                            'recordKey' => (string) $record->getKey(),
+                            'table' => true,
+                        ])
                         ->assertSet('mountedActions', []);
-                }
-            })->with($contract->relationManagersWithHeaderActions());
+                })->with($rows);
+            });
+
+            $when($contract->listPages(), function (array $rows) use ($contract) {
+                it('refuses an inline column write on a locked row', function (string $page) use ($contract) {
+                    [$first, $second] = $contract->makeEditors();
+                    $record = $contract->makeRecord($page::getResource()::getModel());
+
+                    $contract->actingAs($first);
+                    $record->lock();
+
+                    $before = $record->fresh()->updated_at?->toString();
+
+                    // Whether this table has an editable column today or not, the
+                    // endpoint has to refuse: one added later must not reopen it.
+                    $contract->actingAs($second);
+                    Livewire::test($page)->call(
+                        'updateTableColumnState',
+                        $contract->probeColumn($record),
+                        (string) $record->getKey(),
+                        true,
+                    );
+
+                    expect($record->fresh()->updated_at?->toString())->toBe($before);
+                })->with($rows);
+            });
+
+            $when($contract->listPages(), function (array $rows) use ($contract) {
+                it('refuses reordering that touches a locked row', function (string $page) use ($contract) {
+                    [$first, $second] = $contract->makeEditors();
+                    $record = $contract->makeRecord($page::getResource()::getModel());
+
+                    $contract->actingAs($first);
+                    $record->lock();
+
+                    $before = $record->fresh()->updated_at?->toString();
+
+                    $contract->actingAs($second);
+                    Livewire::test($page)->call('reorderTable', [(string) $record->getKey()]);
+
+                    expect($record->fresh()->updated_at?->toString())->toBe($before);
+                })->with($rows);
+            });
+            $when($contract->customPages(), function (array $rows) use ($contract) {
+                it('refuses a bare property write on a locked settings page', function (string $page) use ($contract) {
+                    [$first, $second] = $contract->makeEditors();
+
+                    $contract->actingAs($first);
+                    Livewire::test($page)->dispatch('fllock::init');
+
+                    // Not an action, not a form, not a table: a public property with
+                    // an updated hook is arbitrary application code, and every other
+                    // guard is blind to it. Livewire runs trait hooks before the
+                    // component's own, which is the only reason this can be stopped.
+                    $contract->actingAs($second);
+                    Livewire::test($page)
+                        ->dispatch('fllock::init')
+                        ->assertSet('isReadOnly', true);
+                })->with($rows);
+            });
+
+            $when($contract->relationManagersWithHeaderActions(), function (array $rows) use ($contract) {
+                it('refuses every header action on a relation manager whose record is locked', function (string $manager) use ($contract) {
+                    [$first, $second] = $contract->makeEditors();
+                    $owner = $contract->makeRecord($contract->ownerModelOf($manager));
+
+                    $contract->actingAs($first);
+                    $owner->lock();
+
+                    $contract->actingAs($second);
+
+                    $mount = fn (): \Livewire\Features\SupportTesting\Testable => Livewire::test($manager, [
+                        'ownerRecord' => $owner,
+                        'pageClass' => $contract->pageClassFor($manager),
+                    ]);
+
+                    // The manager's own header actions, by name. Guessing at 'create'
+                    // would pass against a manager whose action is called something
+                    // else -- and a custom header action is exactly the case that
+                    // was broken: it carries no record, so the row-level guards never
+                    // see it, and Filament's isReadOnly() hides only its own
+                    // CreateAction.
+                    $names = collect($mount()->instance()->getTable()->getHeaderActions())
+                        ->map(fn ($action): string => $action->getName())
+                        ->all();
+
+                    expect($names)->not->toBeEmpty(
+                        "{$manager} registers no header actions; drop it from this check or give it one",
+                    );
+
+                    foreach ($names as $name) {
+                        $mount()
+                            ->call('mountAction', $name, [], ['table' => true])
+                            ->assertSet('mountedActions', []);
+                    }
+                })->with($rows);
+            });
         });
 
         describe('the traits every surface needs', function () use ($contract) {
-            it('makes the model behind every record page lockable', function (string $page) use ($contract) {
-                expect(class_uses_recursive($page::getResource()::getModel()))
-                    ->toContain(\F4nu\Fllock\Models\Concerns\HasRecordLock::class);
-            })->with($contract->editPages());
+            $when($contract->editPages(), function (array $rows) use ($contract) {
+                it('makes the model behind every record page lockable', function (string $page) use ($contract) {
+                    expect(class_uses_recursive($page::getResource()::getModel()))
+                        ->toContain(\F4nu\Fllock\Models\Concerns\HasRecordLock::class);
+                })->with($rows);
+            });
 
-            it('guards every record page', function (string $page) {
-                expect(class_uses_recursive($page))
-                    ->toContain(\F4nu\Fllock\Filament\Concerns\LocksRecordWhileEditing::class);
-            })->with($contract->editPages());
+            $when($contract->editPages(), function (array $rows) use ($contract) {
+                it('guards every record page', function (string $page) {
+                    expect(class_uses_recursive($page))
+                        ->toContain(\F4nu\Fllock\Filament\Concerns\LocksRecordWhileEditing::class);
+                })->with($rows);
+            });
 
-            it('guards every list page', function (string $page) {
-                expect(class_uses_recursive($page))
-                    ->toContain(\F4nu\Fllock\Filament\Concerns\LocksRecordsEditedInModals::class);
-            })->with($contract->listPages());
+            $when($contract->listPages(), function (array $rows) use ($contract) {
+                it('guards every list page', function (string $page) {
+                    expect(class_uses_recursive($page))
+                        ->toContain(\F4nu\Fllock\Filament\Concerns\LocksRecordsEditedInModals::class);
+                })->with($rows);
+            });
 
-            it('guards every custom page', function (string $page) {
-                expect(class_uses_recursive($page))
-                    ->toContain(\F4nu\Fllock\Filament\Concerns\LocksPageWhileEditing::class);
-            })->with($contract->customPages());
+            $when($contract->customPages(), function (array $rows) use ($contract) {
+                it('guards every custom page', function (string $page) {
+                    expect(class_uses_recursive($page))
+                        ->toContain(\F4nu\Fllock\Filament\Concerns\LocksPageWhileEditing::class);
+                })->with($rows);
+            });
 
-            it('guards every hand-written record page', function (string $page) {
-                expect(class_uses_recursive($page))
-                    ->toContain(\F4nu\Fllock\Filament\Concerns\LocksRecordOnPage::class);
-            })->with($contract->recordPages());
+            $when($contract->recordPages(), function (array $rows) use ($contract) {
+                it('guards every hand-written record page', function (string $page) {
+                    expect(class_uses_recursive($page))
+                        ->toContain(\F4nu\Fllock\Filament\Concerns\LocksRecordOnPage::class);
+                })->with($rows);
+            });
 
-            it('guards every relation manager', function (string $manager) {
-                expect(class_uses_recursive($manager))
-                    ->toContain(\F4nu\Fllock\Filament\Concerns\LocksRecordsEditedInModals::class)
-                    ->toContain(\F4nu\Fllock\Filament\Concerns\ReadOnlyWhenOwnerRecordIsLocked::class);
-            })->with($contract->relationManagers());
+            $when($contract->relationManagers(), function (array $rows) use ($contract) {
+                it('guards every relation manager', function (string $manager) {
+                    expect(class_uses_recursive($manager))
+                        ->toContain(\F4nu\Fllock\Filament\Concerns\LocksRecordsEditedInModals::class)
+                        ->toContain(\F4nu\Fllock\Filament\Concerns\ReadOnlyWhenOwnerRecordIsLocked::class);
+                })->with($rows);
+            });
         });
     }
 
