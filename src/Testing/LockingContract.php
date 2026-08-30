@@ -7,6 +7,7 @@ use Filament\Pages\Page;
 use Filament\Resources\Pages\Concerns\InteractsWithRecord;
 use Filament\Resources\Pages\CreateRecord;
 use Filament\Resources\Pages\ViewRecord;
+use Filament\Resources\Resource;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Resources\Pages\ManageRecords;
@@ -479,8 +480,22 @@ class LockingContract {
         return ($pages['edit'] ?? $pages['view'] ?? $pages['index'])->getPage();
     }
 
+    /**
+     * The resource a relation manager belongs to.
+     *
+     * Found by asking every resource what it declares, not by chopping the
+     * manager's namespace: where a manager sits relative to its resource is a
+     * layout choice, and stripping `\RelationManagers\` produces a class name
+     * that does not exist as soon as the layout differs.
+     */
     protected function resourceOf(string $manager): string {
-        return substr($manager, 0, strrpos($manager, '\\RelationManagers\\'));
+        foreach ($this->classesExtending(Resource::class) as [$resource]) {
+            if (in_array($manager, $resource::getRelations(), true)) {
+                return $resource;
+            }
+        }
+
+        throw new \RuntimeException("No resource declares {$manager} in getRelations().");
     }
 
     /** @return array{0: Model, 1: Model} */
