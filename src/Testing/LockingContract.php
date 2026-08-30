@@ -330,15 +330,18 @@ class LockingContract {
                         ->assertSet('isReadOnly', true);
 
                     // Named, not iterated: `foreach` over an empty array asserts
-                    // nothing, and that is exactly how the take-over button went
-                    // missing from every page for a week -- the trait merged it
-                    // into `getHeaderActions()`, every page defines its own, and
-                    // a class method beats a trait one.
+                    // nothing, which is how a missing button went unnoticed.
+                    //
+                    // Nothing survives in the header. The take-over is offered on
+                    // the notification instead: a header action has to be
+                    // registered through the page's own `getHeaderActions()`,
+                    // every page here defines that itself, and a class method
+                    // beats a trait one, so the action never existed.
                     $headerActions = collect($component->instance()->getCachedHeaderActions())
                         ->map(fn ($action): string => $action->getName())
                         ->all();
 
-                    expect($headerActions)->toBe(['fllockForceUnlock']);
+                    expect($headerActions)->toBe([]);
 
                     // And Save must be gone, not merely inert: a page that looks
                     // editable and refuses on click gives no feedback at all.
@@ -367,6 +370,22 @@ class LockingContract {
             });
 
             $when($contract->editPages(), function (array $rows) use ($contract) {
+                it('hands the record over when the take-over is used', function (string $page) use ($contract) {
+                    [$first, $second] = $contract->makeEditors();
+                    $record = $contract->makeRecord($page::getResource()::getModel());
+
+                    $contract->openEditPage($page, $record, $first);
+
+                    // What the notification's button dispatches. Asserting the
+                    // button existed proved nothing: it never did.
+                    $contract->openEditPage($page, $record, $second)
+                        ->assertSet('isReadOnly', true)
+                        ->dispatch('fllock::take-over')
+                        ->assertSet('isReadOnly', false);
+
+                    expect($record->fresh()->isLockedByCurrentUser())->toBeTrue();
+                })->with($rows);
+
                 it('refuses a save over a write it never saw', function (string $page) use ($contract) {
                     [$first] = $contract->makeEditors();
                     $record = $contract->makeRecord($page::getResource()::getModel());

@@ -225,6 +225,16 @@ trait LocksRecordWhileEditing {
 
 
 
+    protected function isRecordLockedByAnother(): bool {
+        $record = $this->record ?? null;
+
+        if ($record === null || ! method_exists($record, 'isLockedByAnotherUserFresh')) {
+            return false;
+        }
+
+        return $record->isLockedByAnotherUserFresh();
+    }
+
     protected function canForceUnlockRecord(): bool {
         $gate = config('fllock.unlock_gate');
 
