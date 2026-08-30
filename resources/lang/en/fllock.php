@@ -19,6 +19,13 @@ return [
         'unlock' => 'Unlock',
         'unlocked' => 'Unlocked',
     ],
+    'stale' => [
+        'title' => 'This record changed while you had it open',
+        'body' => 'Something else wrote to it — the API, a command, or a background job. Nothing you changed has been saved, and saving it now would put it back over that write. Reload to start from what the record says now.',
+        'modal_body' => 'Something else wrote to it while this was open, so nothing was saved. Open it again to work from what the record says now.',
+        'reload' => 'Reload the record',
+        'reloaded' => 'Reloaded from the database',
+    ],
     'column' => [
         'label' => 'Lock',
         'by_you' => 'You are editing this',

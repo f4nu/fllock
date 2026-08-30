@@ -203,6 +203,41 @@ Expired rows are swept hourly by a scheduled command the package registers
 itself. Nothing depends on the sweep — an expired lock is ignored on sight —
 but without it the lock manager fills with rows that mean nothing.
 
+## Writes from outside the panel
+
+The API, a console command and a queued job write whenever they like. None of
+them consult a lock, and none of them should: an API client cannot hold one, and
+blocking it would break whatever the frontend is doing.
+
+That leaves the other half of the problem. A form filled ten minutes ago is
+holding values the record no longer has, and saving it puts them back over
+whatever wrote in the meantime — silently, because nothing is watching.
+
+So a page remembers what `updated_at` said when it filled the form, and:
+
+- **the heartbeat tells you** as soon as it notices the record moved, with a
+  notification that does not time out and offers to reload;
+- **the save refuses**, which is the part that actually protects the other
+  writer — a write landing two seconds before the button is pressed would slip
+  past the heartbeat.
+
+The form is not cleared. Ten minutes of typing thrown away because something
+else touched the row is its own kind of data loss; refusing the save already
+protects the other write, and reloading is offered rather than imposed.
+
+The comparison is for difference, not age. A clock skew between servers, or a
+writer setting the column explicitly, can leave the stored value *earlier* than
+the snapshot — still somebody else's write about to be lost.
+
+Two things it cannot see:
+
+- **A writer that does not touch `updated_at`** — a raw `DB::table()->update()`,
+  or a model with `$timestamps = false`.
+- **A write landing in the same second as the snapshot.** Laravel's timestamps
+  are second-precision, so those two moments are indistinguishable. Hashing
+  every column on every heartbeat would close it and cost far more than the gap
+  is worth; if you need it closed, give the model a `datetime(3)` `updated_at`.
+
 ## What it does not do
 
 - **No optimistic locking.** Two people are not merged; the second is kept out.

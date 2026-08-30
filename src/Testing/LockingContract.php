@@ -193,8 +193,12 @@ class LockingContract {
         return array_filter($pages, function (array $row): bool {
             $class = $row[0];
 
+            // ViewRecord is not excluded. A "view" page routinely carries
+            // actions that write -- approve, mark as read, ban -- and calling
+            // itself a view page says nothing about that. What counts is
+            // whether it exposes an action that is not a read, which the check
+            // below works out by asking the page.
             return ! is_subclass_of($class, CreateRecord::class)
-                && ! is_subclass_of($class, ViewRecord::class)
                 && $this->mountsARecord($class);
         });
     }
@@ -357,6 +361,26 @@ class LockingContract {
             });
 
             $when($contract->editPages(), function (array $rows) use ($contract) {
+                it('refuses a save over a write it never saw', function (string $page) use ($contract) {
+                    [$first] = $contract->makeEditors();
+                    $record = $contract->makeRecord($page::getResource()::getModel());
+
+                    $component = $contract->openEditPage($page, $record, $first);
+
+                    // Something outside the panel writes: the API, a command, a
+                    // job. None of them hold the lock, and none of them should.
+                    $record->forceFill([
+                        $record->getUpdatedAtColumn() => now()->addMinute(),
+                    ])->saveQuietly();
+
+                    $before = $record->fresh()->updated_at?->toJSON();
+
+                    $component->call('save')->assertSet('isStale', true);
+
+                    // The stale form must not have gone over the top of it.
+                    expect($record->fresh()->updated_at?->toJSON())->toBe($before);
+                })->with($rows);
+
                 it('refuses a save from a second editor', function (string $page) use ($contract) {
                     [$first, $second] = $contract->makeEditors();
                     $record = $contract->makeRecord($page::getResource()::getModel());
@@ -389,6 +413,28 @@ class LockingContract {
             });
 
             $when($contract->listPages(), function (array $rows) use ($contract) {
+                it('keeps an open modal\'s lock alive on the heartbeat', function (string $page) use ($contract) {
+                    [$first] = $contract->makeEditors();
+                    $record = $contract->makeRecord($page::getResource()::getModel());
+
+                    $contract->actingAs($first);
+
+                    $component = Livewire::test($page)->call('mountAction', 'edit', [], [
+                        'recordKey' => (string) $record->getKey(),
+                        'table' => true,
+                    ]);
+
+                    // A modal's lock is tied to the modal, not the page, and
+                    // nothing renewed it: a slide-over left open went stale
+                    // after the timeout while still looking editable.
+                    $contract->age($record, config('fllock.timeout') - 5);
+
+                    $component->dispatch('fllock::heartbeat');
+
+                    expect($record->fresh()->isLocked())->toBeTrue();
+                    expect($record->fresh()->recordLock->isExpired())->toBeFalse();
+                })->with($rows);
+
                 it('refuses an inline column write on a locked row', function (string $page) use ($contract) {
                     [$first, $second] = $contract->makeEditors();
                     $record = $contract->makeRecord($page::getResource()::getModel());
@@ -514,9 +560,49 @@ class LockingContract {
             });
 
             $when($contract->recordPages(), function (array $rows) use ($contract) {
-                it('guards every hand-written record page', function (string $page) {
-                    expect(class_uses_recursive($page))
-                        ->toContain(\F4nu\Fllock\Filament\Concerns\LocksRecordOnPage::class);
+                it('guards every record page that can write', function (string $page) use ($contract) {
+                    [$first] = $contract->makeEditors();
+                    $record = $contract->makeRecord($page::getResource()::getModel());
+
+                    $contract->actingAs($first);
+
+                    // Ask the rendered page what it can be told to do, rather
+                    // than guessing from what it extends or looking in one
+                    // place. Actions live in header actions, in table rows, and
+                    // inside schema components -- the donation reader keeps
+                    // four of them in an infolist section, which is why looking
+                    // only at header actions found nothing and called the page
+                    // safe.
+                    $writes = collect()
+                        ->pipe(function () use ($page, $record) {
+                            preg_match_all(
+                                "/mountAction\\(&#039;([a-zA-Z0-9_]+)&#039;|mountAction\\('([a-zA-Z0-9_]+)'/",
+                                Livewire::test($page, ['record' => $record->getRouteKey()])->html(),
+                                $matches,
+                            );
+
+                            return collect($matches[1])
+                                ->merge($matches[2])
+                                ->filter()
+                                ->unique();
+                        })
+                        ->reject(fn (string $name): bool => $name === 'fllockForceUnlock'
+                            || in_array($name, config('fllock.permitted_actions', []), true));
+
+                    if ($writes->isEmpty()) {
+                        expect(true)->toBeTrue("{$page} exposes no writes; nothing to lock");
+
+                        return;
+                    }
+
+                    $traits = class_uses_recursive($page);
+
+                    expect(
+                        in_array(\F4nu\Fllock\Filament\Concerns\LocksRecordOnPage::class, $traits, true)
+                        || in_array(\F4nu\Fllock\Filament\Concerns\LocksRecordWhileEditing::class, $traits, true)
+                    )->toBeTrue(
+                        "{$page} offers " . $writes->implode(', ') . ' but takes no lock'
+                    );
                 })->with($rows);
             });
 
@@ -572,6 +658,13 @@ class LockingContract {
 
     public function makeRecord(string $model): Model {
         return ($this->record)($model);
+    }
+
+    /** Pretend a lock has been sitting untouched for a while. */
+    public function age(Model $record, int $seconds): void {
+        $record->fresh()->recordLock?->update([
+            'updated_at' => now()->subSeconds($seconds),
+        ]);
     }
 
     public function actingAs(Model $user): void {

@@ -69,6 +69,16 @@ trait LocksPageWhileEditing {
         if ($this->isReadOnly && ! $wasReadOnly) {
             $this->notifyPageIsLocked();
         }
+
+        // Nothing about the lock changed, so nothing on the page needs redrawing.
+        // Without this every heartbeat re-renders the component -- twenty
+        // seconds apart, forever -- and a page whose interactivity is built in
+        // Alpine gets it torn down and rebuilt underneath the person using it.
+        // On a schedule planner that meant a drag in progress sometimes simply
+        // did not happen.
+        if ($this->isReadOnly === $wasReadOnly) {
+            $this->skipRender();
+        }
     }
 
     /**

@@ -4,6 +4,7 @@ namespace F4nu\Fllock\Filament\Concerns;
 
 use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Model;
+use Livewire\Attributes\On;
 
 /**
  * Locks records edited from a table -- row modals, slide-overs, inline columns,
@@ -25,6 +26,14 @@ trait LocksRecordsEditedInModals {
      * @var array{0: string, 1: mixed}|null
      */
     public ?array $lockedModalRecord = null;
+
+    /**
+     * What `updated_at` said when the modal filled its form.
+     *
+     * Most of a panel is edited in a slide-over, so a stale-write guard that
+     * only covered full pages would miss the ordinary case.
+     */
+    public ?string $modalRecordFingerprint = null;
 
     /**
      * @param  array<mixed>  $arguments
@@ -61,6 +70,7 @@ trait LocksRecordsEditedInModals {
         // a one-shot action does its work and is gone.
         if ($name === 'edit' && $record->lock()) {
             $this->lockedModalRecord = [$record->getMorphClass(), $record->getKey()];
+            $this->modalRecordFingerprint = $record->{$record->getUpdatedAtColumn()}?->toJSON();
         }
 
         return $result;
@@ -100,6 +110,16 @@ trait LocksRecordsEditedInModals {
         }
 
         if ($record === null && ! $this->isPermittedWhileLocked($name) && $this->isOwnerRecordLocked()) {
+            $this->unmountAction(cancelParentActions: false);
+
+            return null;
+        }
+
+        // Something wrote to this record while the modal sat open -- the API, a
+        // command, a job. None of them consult the lock, correctly, so this is
+        // all that stands between their write and a stale form saved over it.
+        if ($record !== null && $this->modalRecordIsStale($record)) {
+            $this->notifyModalRecordIsStale();
             $this->unmountAction(cancelParentActions: false);
 
             return null;
@@ -146,10 +166,28 @@ trait LocksRecordsEditedInModals {
      */
     public function updateTableColumnState(string $column, string $record, mixed $input): mixed {
         if ($this->isTableWriteLocked($record)) {
-            return null;
+            // Not null: an editable column reads null as "saved". It then keeps
+            // the value the person just set, so a refused toggle stays flipped
+            // until the table is reloaded -- it says the write was refused and
+            // shows it as though it happened. Filament's own contract for a
+            // rejected write is an `error` key, which leaves the server's value
+            // in place and puts the state back.
+            return ['error' => $this->lockedWriteMessage($record)];
         }
 
         return parent::updateTableColumnState($column, $record, $input);
+    }
+
+    protected function lockedWriteMessage(string $recordKey): string {
+        $record = $this->getTableRecord($recordKey);
+
+        $owner = $this->isLockable($record)
+            ? $record->recordLockOwnerName()
+            : ($this->ownerRecord ?? null)?->recordLockOwnerName();
+
+        return $owner
+            ? __('fllock::fllock.locked_by', ['name' => $owner])
+            : __('fllock::fllock.locked');
     }
 
     /**
@@ -168,6 +206,91 @@ trait LocksRecordsEditedInModals {
         parent::reorderTable($order, $draggedRecordKey);
     }
 
+    /**
+     * Keeps an open modal's lock alive.
+     *
+     * The lock is taken when the modal mounts and nothing renewed it, so a
+     * slide-over left open lost the record after the timeout while still
+     * sitting there looking editable. Every other surface listens for the
+     * heartbeat; this one did not, because its lock is tied to a modal rather
+     * than to the page.
+     */
+    #[On('fllock::heartbeat')]
+    public function fllockRenewModalLock(): void {
+        $record = $this->fllockLockedModalRecord();
+
+        if ($record === null) {
+            return;
+        }
+
+        if ($record->lock()) {
+            return;
+        }
+
+        // Lost it while the modal sat open -- expired, then taken. Saving is
+        // refused anyway, but the person deserves to hear it now rather than
+        // when they press save.
+        $this->lockedModalRecord = null;
+        $this->notifyLocked($record->recordLockOwnerName());
+    }
+
+    /**
+     * Releases an open modal's lock when the page goes away.
+     *
+     * Closing the modal releases it through `unmountAction()`; leaving the page
+     * with it still open never went through there at all.
+     */
+    #[On('fllock::release')]
+    public function fllockReleaseModalLock(): void {
+        $this->releaseModalRecordLock();
+    }
+
+    /**
+     * Has the record moved since the modal opened?
+     *
+     * Compared for difference rather than age: a clock skew between servers, or
+     * a writer setting the column itself, can leave the stored value earlier,
+     * and that is still a write about to be lost.
+     */
+    protected function modalRecordIsStale(Model $record): bool {
+        if ($this->modalRecordFingerprint === null || ! $record->usesTimestamps()) {
+            return false;
+        }
+
+        $current = $record->newQuery()
+            ->whereKey($record->getKey())
+            ->value($record->getUpdatedAtColumn())
+            ?->toJSON();
+
+        return $current !== $this->modalRecordFingerprint;
+    }
+
+    protected function notifyModalRecordIsStale(): void {
+        Notification::make('fllock-stale')
+            ->warning()
+            ->persistent()
+            ->title(__('fllock::fllock.stale.title'))
+            ->body(__('fllock::fllock.stale.modal_body'))
+            ->send();
+    }
+
+    protected function fllockLockedModalRecord(): ?Model {
+        if ($this->lockedModalRecord === null) {
+            return null;
+        }
+
+        [$morphClass, $key] = $this->lockedModalRecord;
+
+        $model = Model::getActualClassNameForMorph($morphClass);
+        $record = $model::query()->find($key);
+
+        if ($record === null) {
+            $this->lockedModalRecord = null;
+        }
+
+        return $record;
+    }
+
     public function unmountAction(bool|string|null $cancelParentActions = null): void {
         $this->releaseModalRecordLock();
 
@@ -181,6 +304,7 @@ trait LocksRecordsEditedInModals {
 
         [$morphClass, $key] = $this->lockedModalRecord;
         $this->lockedModalRecord = null;
+        $this->modalRecordFingerprint = null;
 
         $model = Model::getActualClassNameForMorph($morphClass);
 
@@ -206,7 +330,7 @@ trait LocksRecordsEditedInModals {
     }
 
     protected function refuseLockedRecord(Model $record): bool {
-        $record->refresh();
+        $record->unsetRelation('recordLock');
 
         if (! $record->isLockedByAnotherUser()) {
             return false;

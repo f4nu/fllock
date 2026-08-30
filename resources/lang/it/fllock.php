@@ -19,6 +19,13 @@ return [
         'unlock' => 'Sblocca',
         'unlocked' => 'Sbloccato',
     ],
+    'stale' => [
+        'title' => 'Il record è cambiato mentre lo avevi aperto',
+        'body' => "Qualcos'altro lo ha modificato: le API, un comando o un job in background. Le tue modifiche non sono state salvate, e salvarle ora le rimetterebbe sopra quella scrittura. Ricarica per ripartire da ciò che dice il record adesso.",
+        'modal_body' => "Qualcos'altro lo ha modificato mentre era aperto, quindi non è stato salvato nulla. Riaprilo per lavorare su ciò che dice il record adesso.",
+        'reload' => 'Ricarica il record',
+        'reloaded' => 'Ricaricato dal database',
+    ],
     'column' => [
         'label' => 'Blocco',
         'by_you' => 'Lo stai modificando tu',

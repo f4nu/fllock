@@ -6,6 +6,7 @@ use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Schema;
 use Filament\Support\Exceptions\Halt;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\On;
 
@@ -22,6 +23,7 @@ use Livewire\Attributes\On;
  * endpoint without going through the page at all.
  */
 trait LocksRecordWhileEditing {
+    use RefusesStaleWrites;
     use RefusesWritesWhileLocked;
 
     public bool $isReadOnly = false;
@@ -57,11 +59,19 @@ trait LocksRecordWhileEditing {
     #[On('fllock::init')]
     public function fllockInit(): void {
         $this->syncRecordLock();
+        $this->rememberRecordFingerprint();
     }
 
     #[On('fllock::heartbeat')]
     public function fllockHeartbeat(): void {
         $this->syncRecordLock();
+
+        // Somebody wrote to this record while the form sat open -- the API, a
+        // command, a job. Say so now rather than at save time.
+        if (! $this->isStale && $this->recordChangedElsewhere()) {
+            $this->isStale = true;
+            $this->notifyRecordChangedElsewhere();
+        }
     }
 
     #[On('fllock::release')]
@@ -84,7 +94,13 @@ trait LocksRecordWhileEditing {
 
         $wasReadOnly = $this->isReadOnly;
 
-        $record->refresh();
+        // unsetRelation, not refresh(): the lock has to be read fresh, the
+        // record does not. refresh() throws away every loaded relation with it,
+        // and a page built from those relations -- a schedule planner, say --
+        // then rebuilds itself from nothing. That broke drag-to-reorder, and
+        // once the heartbeat started calling this every twenty seconds it broke
+        // it only sometimes, which was worse.
+        $record->unsetRelation('recordLock');
 
         if ($record->lock()) {
             $this->isReadOnly = false;
@@ -100,6 +116,16 @@ trait LocksRecordWhileEditing {
 
         if ($this->isReadOnly && ! $wasReadOnly) {
             $this->notifyRecordIsLocked();
+        }
+
+        // Nothing about the lock changed, so nothing on the page needs redrawing.
+        // Without this every heartbeat re-renders the component -- twenty
+        // seconds apart, forever -- and a page whose interactivity is built in
+        // Alpine gets it torn down and rebuilt underneath the person using it.
+        // On a schedule planner that meant a drag in progress sometimes simply
+        // did not happen.
+        if ($this->isReadOnly === $wasReadOnly) {
+            $this->skipRender();
         }
     }
 
@@ -170,6 +196,8 @@ trait LocksRecordWhileEditing {
                 ->visible(fn (): bool => $this->isReadOnly && $this->canForceUnlockRecord())
                 ->action(function (): void {
                     $this->record->unlock(force: true);
+                    // A full refresh is right here, and only here: taking the
+                    // record over means showing what it says now.
                     $this->record->refresh();
                     $this->syncRecordLock();
                     $this->fillForm();
@@ -289,7 +317,29 @@ trait LocksRecordWhileEditing {
             return;
         }
 
+        // The heartbeat is the courtesy; this is the protection. A write
+        // landing two seconds before the button was pressed would otherwise go
+        // straight over the top.
+        if ($this->recordChangedElsewhere()) {
+            $this->isStale = true;
+            $this->notifyRecordChangedElsewhere();
+
+            return;
+        }
+
         parent::save($shouldRedirect, $shouldSendSavedNotification);
+
+        // Our own write moved it. Without this the next save refuses itself.
+        $this->rememberRecordFingerprint();
+    }
+
+    protected function staleCheckRecord(): ?Model {
+        return $this->record ?? null;
+    }
+
+    protected function reloadStaleRecord(): void {
+        $this->record->refresh();
+        $this->fillForm();
     }
 
     /**
@@ -310,7 +360,9 @@ trait LocksRecordWhileEditing {
             return false;
         }
 
-        $record->refresh();
+        // Same rule as above: reload the lock, leave the record alone. This one
+        // runs on every action and every save.
+        $record->unsetRelation('recordLock');
 
         if (! $record->isLockedByAnotherUser()) {
             return false;

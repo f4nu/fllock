@@ -64,7 +64,13 @@ trait LocksRecordOnPage {
 
         $wasReadOnly = $this->isReadOnly;
 
-        $record->refresh();
+        // unsetRelation, not refresh(): the lock has to be read fresh, the
+        // record does not. refresh() throws away every loaded relation with it,
+        // and a page built from those relations -- a schedule planner, say --
+        // then rebuilds itself from nothing. That broke drag-to-reorder, and
+        // once the heartbeat started calling this every twenty seconds it broke
+        // it only sometimes, which was worse.
+        $record->unsetRelation('recordLock');
 
         if ($record->lock()) {
             $this->isReadOnly = false;
@@ -80,6 +86,16 @@ trait LocksRecordOnPage {
 
         if ($this->isReadOnly && ! $wasReadOnly) {
             $this->fllockNotifyLocked();
+        }
+
+        // Nothing about the lock changed, so nothing on the page needs redrawing.
+        // Without this every heartbeat re-renders the component -- twenty
+        // seconds apart, forever -- and a page whose interactivity is built in
+        // Alpine gets it torn down and rebuilt underneath the person using it.
+        // On a schedule planner that meant a drag in progress sometimes simply
+        // did not happen.
+        if ($this->isReadOnly === $wasReadOnly) {
+            $this->skipRender();
         }
     }
 
