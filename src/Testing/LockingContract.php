@@ -3,6 +3,10 @@
 namespace F4nu\Fllock\Testing;
 
 use Closure;
+use Filament\Pages\Page;
+use Filament\Resources\Pages\Concerns\InteractsWithRecord;
+use Filament\Resources\Pages\CreateRecord;
+use Filament\Resources\Pages\ViewRecord;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Resources\Pages\ManageRecords;
@@ -112,6 +116,62 @@ class LockingContract {
     public function listPages(): array {
         return $this->classesExtending(ListRecords::class)
             + $this->classesExtending(ManageRecords::class);
+    }
+
+    /**
+     * Custom panel pages — the ones that are not a resource's list or edit page.
+     *
+     * These are enumerated because they are the third distinct shape a lock has
+     * to cover and the one nobody thinks of: a settings page is a single form
+     * over a singleton, with no record to attach a lock to, and it is where a
+     * second editor's save silently overwrites the first with no sign anywhere
+     * that it happened.
+     *
+     * Every one of them must either lock or be named in `except()`, which makes
+     * "this page does not need locking" a decision somebody wrote down rather
+     * than a page nobody looked at.
+     *
+     * @return array<string, array{0: class-string}>
+     */
+    public function customPages(): array {
+        $pages = array_diff_key(
+            $this->classesExtending(Page::class),
+            $this->editPages() + $this->listPages(),
+        );
+
+        return array_filter($pages, function (array $row): bool {
+            $class = $row[0];
+
+            // Nothing to lock on a create page: the record does not exist yet.
+            // A view page writes nothing. And a page that carries a record is
+            // covered by the record lock, not this one.
+            return ! is_subclass_of($class, CreateRecord::class)
+                && ! is_subclass_of($class, ViewRecord::class)
+                && ! in_array(InteractsWithRecord::class, class_uses_recursive($class), true)
+                && ! $this->mountsARecord($class);
+        });
+    }
+
+    /**
+     * Whether a page takes a record in `mount()`.
+     *
+     * Filament's own record pages say so through `InteractsWithRecord`, but a
+     * hand-written page routed as `/{record}/something` resolves it itself and
+     * says nothing. It is still a record page, and a record lock is what it
+     * wants -- not the singleton lock this group is about.
+     */
+    protected function mountsARecord(string $class): bool {
+        if (! method_exists($class, 'mount')) {
+            return false;
+        }
+
+        foreach ((new \ReflectionMethod($class, 'mount'))->getParameters() as $parameter) {
+            if ($parameter->getName() === 'record') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** @return array<string, array{0: class-string}> */
@@ -321,6 +381,22 @@ class LockingContract {
 
                 expect($record->fresh()->updated_at?->toString())->toBe($before);
             })->with($contract->listPages());
+            it('refuses a bare property write on a locked settings page', function (string $page) use ($contract) {
+                [$first, $second] = $contract->makeEditors();
+
+                $contract->actingAs($first);
+                Livewire::test($page)->dispatch('fllock::init');
+
+                // Not an action, not a form, not a table: a public property with
+                // an updated hook is arbitrary application code, and every other
+                // guard is blind to it. Livewire runs trait hooks before the
+                // component's own, which is the only reason this can be stopped.
+                $contract->actingAs($second);
+                Livewire::test($page)
+                    ->dispatch('fllock::init')
+                    ->assertSet('isReadOnly', true);
+            })->with($contract->customPages());
+
             it('refuses every header action on a relation manager whose record is locked', function (string $manager) use ($contract) {
                 [$first, $second] = $contract->makeEditors();
                 $owner = $contract->makeRecord($contract->ownerModelOf($manager));
@@ -372,6 +448,11 @@ class LockingContract {
                 expect(class_uses_recursive($page))
                     ->toContain(\F4nu\Fllock\Filament\Concerns\LocksRecordsEditedInModals::class);
             })->with($contract->listPages());
+
+            it('guards every custom page', function (string $page) {
+                expect(class_uses_recursive($page))
+                    ->toContain(\F4nu\Fllock\Filament\Concerns\LocksPageWhileEditing::class);
+            })->with($contract->customPages());
 
             it('guards every relation manager', function (string $manager) {
                 expect(class_uses_recursive($manager))

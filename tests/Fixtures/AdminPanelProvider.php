@@ -17,6 +17,10 @@ class AdminPanelProvider extends PanelProvider {
                 in: __DIR__ . '/Filament/Resources',
                 for: 'F4nu\\Fllock\\Tests\\Fixtures\\Filament\\Resources',
             )
+            ->discoverPages(
+                in: __DIR__ . '/Filament/Pages',
+                for: 'F4nu\\Fllock\\Tests\\Fixtures\\Filament\\Pages',
+            )
             ->plugin(FllockPlugin::make());
     }
 }

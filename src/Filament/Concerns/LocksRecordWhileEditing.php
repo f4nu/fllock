@@ -5,6 +5,7 @@ namespace F4nu\Fllock\Filament\Concerns;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Schema;
+use Filament\Support\Exceptions\Halt;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\On;
 
@@ -157,6 +158,57 @@ trait LocksRecordWhileEditing {
                     $this->fillForm();
                 }),
         ]);
+    }
+
+
+    /**
+     * Refuses a bare Livewire property write while someone else holds the lock.
+     *
+     * A page can write without an action, a form or a table: a public property
+     * with an `updatedFoo()` hook is arbitrary application code, and no guard
+     * above sees it. The Twitch settings page picks its current event exactly
+     * that way.
+     *
+     * Livewire calls trait hooks before the component's own, so halting here
+     * stops the property being set *and* the app's hook from running. `Halt` is
+     * Filament's own stop-cleanly exception, so this reads as a refusal rather
+     * than a 500.
+     */
+    public function updatingLocksRecordWhileEditing(string $property, mixed $value): void {
+        if (in_array($property, $this->fllockUnguardedProperties(), true)) {
+            return;
+        }
+
+        if (! $this->isRecordLockedByAnother()) {
+            return;
+        }
+
+        $this->notifyRecordIsLocked();
+
+        throw new Halt();
+    }
+
+    /**
+     * Properties the lock ignores: Livewire's own bookkeeping and the paginator,
+     * plus anything a host page adds. Reading a locked page still has to work --
+     * sorting, searching and paging are reads.
+     *
+     * @return array<string>
+     */
+    protected function fllockUnguardedProperties(): array {
+        return ['isReadOnly', 'recordLockOwner', 'paginators', 'page', 'activeRelationManager'];
+    }
+
+    protected function isRecordLockedByAnother(): bool {
+        $record = $this->record ?? null;
+
+        if ($record === null || ! method_exists($record, 'isLockedByAnotherUser')) {
+            return false;
+        }
+
+        $record->refresh();
+
+        return $record->isLockedByAnotherUser();
     }
 
     protected function canForceUnlockRecord(): bool {
