@@ -35,6 +35,20 @@ return [
         'interval' => (int) env('FLLOCK_HEARTBEAT', 20),
         'keep_alive' => true,
         'only_when_visible' => false,
+
+        /*
+        | Seconds of no keyboard, mouse or touch input after which the browser
+        | stops renewing the lock, letting it expire on its own.
+        |
+        | Without this the lock survives exactly as long as the tab does, which
+        | is not the same thing at all: someone who opens a record, wanders off
+        | and leaves the tab open holds it overnight, and the timeout above
+        | never gets a chance to mean anything. The point of a heartbeat is to
+        | say somebody is still there.
+        |
+        | Null keeps a lock alive for as long as the page is open.
+        */
+        'idle_after' => (int) env('FLLOCK_IDLE_AFTER', 300),
     ],
 
     /*
@@ -102,6 +116,19 @@ return [
     | broken. Add your own page's read-only methods here.
     |
     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | Sweeping expired locks
+    |--------------------------------------------------------------------------
+    |
+    | The package schedules `fllock:clear-expired` hourly. Nothing depends on it
+    | -- an expired lock is ignored on sight -- but without it the lock manager
+    | fills with rows that mean nothing. Set false to schedule it yourself.
+    |
+    */
+
+    'sweep_expired' => true,
 
     'permitted_methods' => [
         'gotoPage',

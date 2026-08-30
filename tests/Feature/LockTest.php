@@ -1,8 +1,10 @@
 <?php
 
+use F4nu\Fllock\Livewire\RecordLockObserver;
 use F4nu\Fllock\Models\PageLock;
 use F4nu\Fllock\Models\RecordLock;
 use F4nu\Fllock\Tests\Fixtures\Post;
+use Illuminate\Console\Scheduling\Schedule;
 use F4nu\Fllock\Tests\Fixtures\UuidPost;
 
 it('locks a record for the user who takes it', function () {
@@ -150,4 +152,37 @@ it('hands a page over once its lock lapses', function () {
 
     expect(PageLock::for('Settings')->isLocked())->toBeFalse()
         ->and(PageLock::for('Settings')->lock())->toBeTrue();
+});
+
+it('stops counting an idle tab as a sign of life', function () {
+    $observer = new RecordLockObserver();
+    $observer->idleFor = config('fllock.heartbeat.idle_after') + 1;
+
+    // A tab left open beats forever, which is not the same as somebody being
+    // there. Without this the timeout never gets to mean anything.
+    expect($observer->shouldBeat())->toBeFalse();
+});
+
+it('keeps renewing while the viewer is still there', function () {
+    $observer = new RecordLockObserver();
+    $observer->idleFor = 5;
+
+    expect($observer->shouldBeat())->toBeTrue();
+});
+
+it('keeps a lock alive indefinitely when idle release is off', function () {
+    config()->set('fllock.heartbeat.idle_after', null);
+
+    $observer = new RecordLockObserver();
+    $observer->idleFor = 60 * 60 * 8;
+
+    expect($observer->shouldBeat())->toBeTrue();
+});
+
+it('schedules the expiry sweep', function () {
+    $events = collect(app(Schedule::class)->events())
+        ->map(fn ($event) => $event->command ?? '')
+        ->filter(fn (string $command) => str_contains($command, 'fllock:clear-expired'));
+
+    expect($events)->not->toBeEmpty();
 });

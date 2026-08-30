@@ -164,6 +164,26 @@ and Livewire v4 assumes a request has happened. That suite runs against a
 scaffolded application instead, one per Filament version in the matrix; see
 `.github/workflows/contract.yml`.
 
+## When a lock lets go
+
+Four ways, in the order they usually happen:
+
+- **The page is closed or navigated away from.** SPA navigation releases it at
+  once; a real unload is best effort.
+- **The viewer stops touching the keyboard.** After `heartbeat.idle_after`
+  seconds of no input the browser stops renewing, and the lock lapses on its
+  own. This is what stops a tab left open overnight from holding a record until
+  morning — a heartbeat is meant to say somebody is *there*, and a tab beats
+  whether or not anybody is.
+- **`timeout` seconds pass with no heartbeat at all.** The lock is ignored from
+  that moment; the next person's page picks the record up on their next beat.
+- **Somebody takes it.** The read-only banner offers that to whoever passes
+  `unlock_gate`, and the lock manager can clear any of them.
+
+Expired rows are swept hourly by a scheduled command the package registers
+itself. Nothing depends on the sweep — an expired lock is ignored on sight —
+but without it the lock manager fills with rows that mean nothing.
+
 ## What it does not do
 
 - **No optimistic locking.** Two people are not merged; the second is kept out.

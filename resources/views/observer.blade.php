@@ -1,6 +1,28 @@
 <div
-    x-data
-    x-init="$nextTick(() => Livewire.dispatch('fllock::init'))"
+    x-data="{
+        lastActivity: Date.now(),
+
+        init() {
+            $nextTick(() => Livewire.dispatch('fllock::init'))
+
+            // Is anybody still there? A heartbeat from a tab left open on a
+            // record its owner walked away from is not a sign of life, and
+            // without this the lock outlives the working day.
+            const seen = () => this.lastActivity = Date.now()
+
+            for (const event of ['keydown', 'pointerdown', 'pointermove', 'wheel', 'touchstart']) {
+                window.addEventListener(event, seen, { passive: true })
+            }
+
+            // set(..., false) is deliberate: assigning to $wire would send a
+            // request of its own, and these events fire constantly. This way
+            // the figure simply rides along with the next heartbeat.
+            setInterval(
+                () => $wire.set('idleFor', Math.round((Date.now() - this.lastActivity) / 1000), false),
+                5000,
+            )
+        },
+    }"
 >
     {{-- The beat. `.keep-alive` keeps it running in a backgrounded tab, which is
          the ordinary way an admin leaves an edit page open. --}}
