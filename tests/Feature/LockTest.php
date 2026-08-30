@@ -186,3 +186,11 @@ it('schedules the expiry sweep', function () {
 
     expect($events)->not->toBeEmpty();
 });
+
+it('does not keep the heartbeat alive in a hidden tab', function () {
+    // Livewire pauses polling on a hidden tab unless keep-alive is set, and that
+    // default is the one we want: a phone suspends the page and its network when
+    // you switch apps, so a beat fired in the background fails and the person is
+    // met with an error toast when they come back. It happened in production.
+    expect((new RecordLockObserver())->render()->getData()['keepAlive'])->toBeFalse();
+});
