@@ -99,9 +99,25 @@ trait LocksRecordsEditedInModals {
      *
      * @param  array<mixed>  $arguments
      */
+
+    /**
+     * The name of the action being called, as Livewire recorded it.
+     *
+     * Not `getMountedAction()?->getName()`: resolving can fail -- it returns
+     * null for an action registered outside the page's own `getHeaderActions()`
+     * -- and a guard that cannot name the action treats it as a write and
+     * refuses it. That is how the take-over button mounted its confirmation and
+     * then did nothing when confirmed.
+     */
+    protected function fllockMountedActionName(): ?string {
+        $mounted = $this->mountedActions[array_key_last($this->mountedActions ?? [])] ?? null;
+
+        return $mounted['name'] ?? null;
+    }
+
     public function callMountedAction(array $arguments = []): mixed {
         $record = $this->getLockableMountedRecord();
-        $name = $this->getMountedAction()?->getName();
+        $name = $this->fllockMountedActionName();
 
         if ($record !== null && ! $this->isPermittedWhileLocked($name) && $this->refuseLockedRecord($record)) {
             $this->unmountAction(cancelParentActions: false);

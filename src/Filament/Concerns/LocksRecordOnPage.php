@@ -2,6 +2,7 @@
 
 namespace F4nu\Fllock\Filament\Concerns;
 
+use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Gate;
@@ -99,6 +100,16 @@ trait LocksRecordOnPage {
         }
     }
 
+    protected function fllockTakeOverAction(): Action {
+        return Action::make('fllockForceUnlock')
+            ->label(__('fllock::fllock.take_over'))
+            ->icon('heroicon-o-lock-open')
+            ->color('danger')
+            ->requiresConfirmation()
+            ->modalDescription(__('fllock::fllock.take_over_warning'))
+            ->action(fn () => $this->fllockForceUnlock());
+    }
+
     protected function fllockIsLockedByAnother(): bool {
         $record = $this->lockedRecord();
 
@@ -136,6 +147,25 @@ trait LocksRecordOnPage {
      *
      * @return array<mixed>
      */
+
+    /**
+     * Registers the take-over action on every request.
+     *
+     * It cannot be merged into `getHeaderActions()`: every page here defines
+     * its own, and a class method beats a trait one, so the action simply never
+     * existed. Building it during render is not enough either -- mounting and
+     * calling it are separate requests, and on the second one Filament could
+     * not resolve the name, so the click did nothing at all.
+     *
+     * Livewire runs trait hooks by their trait's name on every request, and a
+     * host class cannot shadow one.
+     */
+    public function bootedLocksRecordOnPage(): void {
+        if ($this->fllockCanForceUnlock()) {
+            $this->cacheAction($this->fllockTakeOverAction());
+        }
+    }
+
     public function getCachedHeaderActions(): array {
         $actions = parent::getCachedHeaderActions();
 
@@ -143,11 +173,20 @@ trait LocksRecordOnPage {
             return $actions;
         }
 
-        return array_values(array_filter(
-            $actions,
+        $takeOver = collect($actions)->first(
             fn ($action): bool => method_exists($action, 'getName')
                 && $action->getName() === 'fllockForceUnlock',
-        ));
+        );
+
+        // Built here rather than merged into `getHeaderActions()`: a page that
+        // defines its own shadows the trait's, and then the take-over button
+        // simply does not exist on the one page that needs it.
+        if ($takeOver === null && $this->fllockCanForceUnlock()) {
+            $takeOver = $this->fllockTakeOverAction();
+            $this->cacheAction($takeOver);
+        }
+
+        return $takeOver === null ? [] : [$takeOver];
     }
 
     public function fllockForceUnlock(): void {

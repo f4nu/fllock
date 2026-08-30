@@ -329,10 +329,16 @@ class LockingContract {
                     $component = $contract->openEditPage($page, $record, $second)
                         ->assertSet('isReadOnly', true);
 
-                    // Only the take-over action may survive up there.
-                    foreach ($component->instance()->getCachedHeaderActions() as $action) {
-                        expect($action->getName())->toBe('fllockForceUnlock');
-                    }
+                    // Named, not iterated: `foreach` over an empty array asserts
+                    // nothing, and that is exactly how the take-over button went
+                    // missing from every page for a week -- the trait merged it
+                    // into `getHeaderActions()`, every page defines its own, and
+                    // a class method beats a trait one.
+                    $headerActions = collect($component->instance()->getCachedHeaderActions())
+                        ->map(fn ($action): string => $action->getName())
+                        ->all();
+
+                    expect($headerActions)->toBe(['fllockForceUnlock']);
 
                     // And Save must be gone, not merely inert: a page that looks
                     // editable and refuses on click gives no feedback at all.

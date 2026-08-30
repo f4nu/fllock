@@ -5,7 +5,6 @@ namespace F4nu\Fllock\Filament\Concerns;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Schema;
-use Filament\Support\Exceptions\Halt;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\On;
@@ -141,13 +140,53 @@ trait LocksRecordWhileEditing {
     }
 
     protected function notifyRecordIsLocked(): void {
-        Notification::make('fllock')
+        $notification = Notification::make('fllock')
             ->warning()
             ->persistent()
             ->title($this->recordLockOwner
                 ? __('fllock::fllock.locked_by', ['name' => $this->recordLockOwner])
-                : __('fllock::fllock.locked'))
-            ->send();
+                : __('fllock::fllock.locked'));
+
+        // The take-over lives on the notification, not in the header.
+        //
+        // A header action has to be registered through the page's own
+        // `getHeaderActions()`, and every page worth locking defines that
+        // itself -- a class method beats a trait one, so the action never
+        // existed. Caching it by hand got it drawn, and then Filament could not
+        // resolve it when the button was pressed, so the confirmation appeared
+        // and confirming it did nothing. A notification action is just a
+        // dispatched event, and needs none of that machinery.
+        if ($this->canForceUnlockRecord()) {
+            $notification->actions([
+                Action::make('fllockTakeOver')
+                    ->label(__('fllock::fllock.take_over'))
+                    ->button()
+                    ->color('danger')
+                    ->dispatch('fllock::take-over'),
+            ]);
+        }
+
+        $notification->send();
+    }
+
+    #[On('fllock::take-over')]
+    public function fllockTakeOver(): void {
+        if (! $this->canForceUnlockRecord()) {
+            return;
+        }
+
+        $this->record->unlock(force: true);
+        // A full refresh is right here, and only here: taking the record over
+        // means showing what it says now.
+        $this->record->refresh();
+        $this->syncRecordLock();
+        $this->fillForm();
+
+        // The form now matches the database, so the snapshot has to say so too.
+        // Without this the very next save is refused as stale -- against a
+        // change the person has just been shown.
+        $this->rememberRecordFingerprint();
+        $this->fllockDismissLockNotice();
     }
 
     /**
@@ -170,6 +209,8 @@ trait LocksRecordWhileEditing {
      *
      * @return array<mixed>
      */
+
+
     public function getCachedHeaderActions(): array {
         $actions = parent::getCachedHeaderActions();
 
@@ -177,113 +218,12 @@ trait LocksRecordWhileEditing {
             return $actions;
         }
 
-        return array_values(array_filter(
-            $actions,
-            fn ($action): bool => method_exists($action, 'getName')
-                && $action->getName() === 'fllockForceUnlock',
-        ));
-    }
-
-    /** @return array<mixed> */
-    protected function getHeaderActions(): array {
-        return array_merge(parent::getHeaderActions(), [
-            Action::make('fllockForceUnlock')
-                ->label(__('fllock::fllock.take_over'))
-                ->icon('heroicon-o-lock-open')
-                ->color('danger')
-                ->requiresConfirmation()
-                ->modalDescription(__('fllock::fllock.take_over_warning'))
-                ->visible(fn (): bool => $this->isReadOnly && $this->canForceUnlockRecord())
-                ->action(function (): void {
-                    $this->record->unlock(force: true);
-                    // A full refresh is right here, and only here: taking the
-                    // record over means showing what it says now.
-                    $this->record->refresh();
-                    $this->syncRecordLock();
-                    $this->fillForm();
-                }),
-        ]);
+        // Read-only means read-only: Delete and the rest go. The take-over is
+        // offered on the notification instead.
+        return [];
     }
 
 
-    /**
-     * Refuses a bare Livewire property write while someone else holds the lock.
-     *
-     * A page can write without an action, a form or a table: a public property
-     * with an `updatedFoo()` hook is arbitrary application code, and no guard
-     * above sees it. The Twitch settings page picks its current event exactly
-     * that way.
-     *
-     * Livewire calls trait hooks before the component's own, so halting here
-     * stops the property being set *and* the app's hook from running. `Halt` is
-     * Filament's own stop-cleanly exception, so this reads as a refusal rather
-     * than a 500.
-     */
-    public function updatingLocksRecordWhileEditing(string $property, mixed $value): void {
-        if ($this->fllockIsUnguardedProperty($property)) {
-            return;
-        }
-
-        if (! $this->isRecordLockedByAnother()) {
-            return;
-        }
-
-        $this->notifyRecordIsLocked();
-
-        throw new Halt();
-    }
-
-    /**
-     * Property paths the lock ignores.
-     *
-     * Reading a locked page has to keep working: searching, sorting, paging and
-     * switching tabs are reads, and so is typing into a form that is already
-     * disabled and whose save is refused anyway. Halting on those turns a
-     * read-only page into a page that throws.
-     *
-     * @return array<string>
-     */
-    protected function fllockUnguardedProperties(): array {
-        return [
-            'isReadOnly',
-            'recordLockOwner',
-            'data',
-            'mountedActions',
-            'mountedActionsData',
-            'mountedActionsArguments',
-            'activeRelationManager',
-            'activeTab',
-            'paginators',
-            'page',
-            'tableSearch',
-            'tableColumnSearches',
-            'tableFilters',
-            'tableSortColumn',
-            'tableSortDirection',
-            'toggledTableColumns',
-            'selectedTableRecords',
-        ];
-    }
-
-    protected function fllockIsUnguardedProperty(string $property): bool {
-        foreach ($this->fllockUnguardedProperties() as $unguarded) {
-            if ($property === $unguarded || str_starts_with($property, $unguarded . '.')) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    protected function isRecordLockedByAnother(): bool {
-        $record = $this->record ?? null;
-
-        if ($record === null || ! method_exists($record, 'isLockedByAnotherUserFresh')) {
-            return false;
-        }
-
-        return $record->isLockedByAnotherUserFresh();
-    }
 
     protected function canForceUnlockRecord(): bool {
         $gate = config('fllock.unlock_gate');
@@ -303,9 +243,25 @@ trait LocksRecordWhileEditing {
         return parent::mountAction($name, $arguments, $context);
     }
 
+
+    /**
+     * The name of the action being called, as Livewire recorded it.
+     *
+     * Not `getMountedAction()?->getName()`: resolving can fail -- it returns
+     * null for an action registered outside the page's own `getHeaderActions()`
+     * -- and a guard that cannot name the action treats it as a write and
+     * refuses it. That is how the take-over button mounted its confirmation and
+     * then did nothing when confirmed.
+     */
+    protected function fllockMountedActionName(): ?string {
+        $mounted = $this->mountedActions[array_key_last($this->mountedActions ?? [])] ?? null;
+
+        return $mounted['name'] ?? null;
+    }
+
     /** @param array<mixed> $arguments */
     public function callMountedAction(array $arguments = []): mixed {
-        if ($this->refuseWhileLocked($this->getMountedAction()?->getName())) {
+        if ($this->refuseWhileLocked($this->fllockMountedActionName())) {
             return null;
         }
 
@@ -355,7 +311,7 @@ trait LocksRecordWhileEditing {
 
         if ($actionName !== null && in_array($actionName, array_merge(
             config('fllock.permitted_actions', []),
-            ['fllockForceUnlock'],
+            ['fllockTakeOver'],
         ), true)) {
             return false;
         }
