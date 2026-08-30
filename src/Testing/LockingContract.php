@@ -286,7 +286,7 @@ class LockingContract {
         // group with nothing in it is not declared.
         $when = fn (array $rows, callable $declare) => $rows === [] ? null : $declare($rows);
 
-        describe('record locking', function () use ($contract) {
+        describe('record locking', function () use ($contract, $when) {
             $when($contract->editPages(), function (array $rows) use ($contract) {
                 it('locks a record while its edit page is open', function (string $page) use ($contract) {
                     [$first] = $contract->makeEditors();
@@ -484,7 +484,7 @@ class LockingContract {
             });
         });
 
-        describe('the traits every surface needs', function () use ($contract) {
+        describe('the traits every surface needs', function () use ($contract, $when) {
             $when($contract->editPages(), function (array $rows) use ($contract) {
                 it('makes the model behind every record page lockable', function (string $page) use ($contract) {
                     expect(class_uses_recursive($page::getResource()::getModel()))
