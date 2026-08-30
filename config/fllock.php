@@ -33,7 +33,7 @@ return [
 
     'heartbeat' => [
         'interval' => (int) env('FLLOCK_HEARTBEAT', 20),
-        'keep_alive' => true,
+        'keep_alive' => false,
         'only_when_visible' => false,
 
         /*

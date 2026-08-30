@@ -24,8 +24,10 @@
         },
     }"
 >
-    {{-- The beat. `.keep-alive` keeps it running in a backgrounded tab, which is
-         the ordinary way an admin leaves an edit page open. --}}
+    {{-- The beat. Without `.keep-alive` Livewire pauses it while the tab is
+         hidden, which is what we want: a phone suspends the page and its network
+         when you switch apps, and a beat fired into that fails and greets the
+         person with an error toast when they come back. --}}
     <div wire:poll{{ $keepAlive ? '.keep-alive' : '' }}{{ $onlyWhenVisible ? '.visible' : '' }}.{{ $interval }}s="beat"></div>
 
     <script>
