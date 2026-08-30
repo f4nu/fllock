@@ -175,6 +175,30 @@ class LockingContract {
         return false;
     }
 
+    /**
+     * Hand-written pages that carry a record: `/{record}/planning` and the like.
+     *
+     * Neither an `EditRecord` nor a settings page, and so covered by neither
+     * group — which is exactly why they went unlocked. They want the record's
+     * own lock, so that every page editing one record contends for one lock.
+     *
+     * @return array<string, array{0: class-string}>
+     */
+    public function recordPages(): array {
+        $pages = array_diff_key(
+            $this->classesExtending(Page::class),
+            $this->editPages() + $this->listPages(),
+        );
+
+        return array_filter($pages, function (array $row): bool {
+            $class = $row[0];
+
+            return ! is_subclass_of($class, CreateRecord::class)
+                && ! is_subclass_of($class, ViewRecord::class)
+                && $this->mountsARecord($class);
+        });
+    }
+
     /** @return array<string, array{0: class-string}> */
     public function relationManagers(): array {
         return $this->classesExtending(RelationManager::class);
@@ -454,6 +478,11 @@ class LockingContract {
                 expect(class_uses_recursive($page))
                     ->toContain(\F4nu\Fllock\Filament\Concerns\LocksPageWhileEditing::class);
             })->with($contract->customPages());
+
+            it('guards every hand-written record page', function (string $page) {
+                expect(class_uses_recursive($page))
+                    ->toContain(\F4nu\Fllock\Filament\Concerns\LocksRecordOnPage::class);
+            })->with($contract->recordPages());
 
             it('guards every relation manager', function (string $manager) {
                 expect(class_uses_recursive($manager))

@@ -22,6 +22,8 @@ use Livewire\Attributes\On;
  * endpoint without going through the page at all.
  */
 trait LocksRecordWhileEditing {
+    use RefusesWritesWhileLocked;
+
     public bool $isReadOnly = false;
 
     public ?string $recordLockOwner = null;
@@ -92,9 +94,24 @@ trait LocksRecordWhileEditing {
             $this->recordLockOwner = $record->recordLockOwnerName();
         }
 
+        if (! $this->isReadOnly && $wasReadOnly) {
+            $this->fllockDismissLockNotice();
+        }
+
         if ($this->isReadOnly && ! $wasReadOnly) {
             $this->notifyRecordIsLocked();
         }
+    }
+
+    /**
+     * Take the banner down once the page becomes writable again.
+     *
+     * It is persistent on purpose -- a read-only page has to keep saying why --
+     * so nothing removes it when the lock is handed over, and the page ends up
+     * editable underneath a notice claiming it is not.
+     */
+    protected function fllockDismissLockNotice(): void {
+        $this->dispatch('close-notification', id: 'fllock');
     }
 
     protected function notifyRecordIsLocked(): void {
@@ -306,5 +323,13 @@ trait LocksRecordWhileEditing {
         $this->notifyRecordIsLocked();
 
         return true;
+    }
+
+    protected function fllockIsLockedByAnother(): bool {
+        return $this->isRecordLockedByAnother();
+    }
+
+    protected function fllockNotifyLocked(): void {
+        $this->notifyRecordIsLocked();
     }
 }

@@ -79,6 +79,36 @@ class ListPosts extends ListRecords {
 use F4nu\Fllock\Filament\Concerns\ReadOnlyWhenOwnerRecordIsLocked;
 ```
 
+Pages that are not a resource's edit page need one of the other two:
+
+```php
+// A hand-written page routed as /{record}/something — a planner, a dashboard.
+// It takes the record's own lock, so every page editing one record contends
+// for one lock.
+use F4nu\Fllock\Filament\Concerns\LocksRecordOnPage;
+
+class EventPlanning extends Page {
+    use LocksRecordOnPage;
+
+    // Only if the page does not call it $record.
+    protected function lockedRecord(): ?Model {
+        return $this->event;
+    }
+}
+
+// A settings page, with no record at all. The lock is keyed on the page.
+use F4nu\Fllock\Filament\Concerns\LocksPageWhileEditing;
+
+class TwitchSettings extends Page {
+    use LocksPageWhileEditing;
+}
+```
+
+Both of those refuse **every** Livewire call while someone else holds the lock,
+rather than trying to name the ways such a page writes — see
+`config/fllock.php`'s `permitted_methods` for the reads that still go through,
+and add your page's own.
+
 Optionally, a lock indicator in tables:
 
 ```php
@@ -141,6 +171,14 @@ scaffolded application instead, one per Filament version in the matrix; see
   not a collaborative editor.
 - **Nothing outside Filament.** A JSON API or a console command writing to the
   same record does not consult the lock, and should not be assumed to.
+- **A component that writes only from a `Livewire.dispatch()` listener** is not
+  covered by the blanket refusal: `__dispatch` has to stay permitted, or the
+  lock's own events could never reach the page. Such a listener is nearly
+  always reachable as an action or a property too, and those are guarded.
+- **A tab closed without warning** releases its lock on a best-effort basis.
+  SPA navigation releases it properly — nothing is unloading, so the request
+  completes — but a real unload may not finish, which is what the timeout is
+  for.
 
 ## Lineage
 

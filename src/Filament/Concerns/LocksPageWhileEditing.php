@@ -21,6 +21,8 @@ use Livewire\Attributes\On;
  * happily lock its own view of one shared thing.
  */
 trait LocksPageWhileEditing {
+    use RefusesWritesWhileLocked;
+
     public bool $isReadOnly = false;
 
     public ?string $recordLockOwner = null;
@@ -58,6 +60,10 @@ trait LocksPageWhileEditing {
         } else {
             $this->isReadOnly = true;
             $this->recordLockOwner = $lock->ownerName();
+        }
+
+        if (! $this->isReadOnly && $wasReadOnly) {
+            $this->fllockDismissLockNotice();
         }
 
         if ($this->isReadOnly && ! $wasReadOnly) {
@@ -193,6 +199,17 @@ trait LocksPageWhileEditing {
         return $gate === null || Gate::allows($gate);
     }
 
+    /**
+     * Take the banner down once the page becomes writable again.
+     *
+     * It is persistent on purpose -- a read-only page has to keep saying why --
+     * so nothing removes it when the lock is handed over, and the page ends up
+     * editable underneath a notice claiming it is not.
+     */
+    protected function fllockDismissLockNotice(): void {
+        $this->dispatch('close-notification', id: 'fllock');
+    }
+
     protected function notifyPageIsLocked(): void {
         Notification::make('fllock')
             ->warning()
@@ -201,5 +218,13 @@ trait LocksPageWhileEditing {
                 ? __('fllock::fllock.locked_by', ['name' => $this->recordLockOwner])
                 : __('fllock::fllock.locked'))
             ->send();
+    }
+
+    protected function fllockIsLockedByAnother(): bool {
+        return $this->pageLock()->isLockedByAnotherUser();
+    }
+
+    protected function fllockNotifyLocked(): void {
+        $this->notifyPageIsLocked();
     }
 }

@@ -7,6 +7,21 @@
     <div wire:poll{{ $keepAlive ? '.keep-alive' : '' }}{{ $onlyWhenVisible ? '.visible' : '' }}.{{ $interval }}s="beat"></div>
 
     <script>
+        // Leaving the page inside an SPA panel. `wire:navigate` swaps the body
+        // without unloading the document, so `pagehide` never fires and the
+        // lock sat there until it expired -- minutes during which nobody else
+        // could edit the record its owner had already walked away from.
+        //
+        // Nothing is unloading, so this is an ordinary Livewire request and it
+        // completes normally.
+        document.addEventListener('livewire:navigating', () => {
+            Livewire.dispatch('fllock::release')
+        })
+
+        // A real unload: closing the tab, or a full page load. The request may
+        // not survive it, which is what the expiry is for -- this is the fast
+        // path, not the guarantee.
+        //
         // addEventListener, not window.onpagehide =: assigning would silently
         // replace whatever else the app has registered there.
         window.addEventListener('pagehide', () => {

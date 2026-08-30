@@ -88,4 +88,36 @@ return [
 
     'permitted_actions' => ['view'],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Methods allowed to run while someone else holds the lock
+    |--------------------------------------------------------------------------
+    |
+    | Every other Livewire call on a locked component is refused, which is the
+    | only way to cover a page that writes through methods of its own invention
+    | rather than through anything Filament recognises.
+    |
+    | These are the reads. A locked page still has to be readable, so paging,
+    | sorting and searching go through -- take one out and read-only becomes
+    | broken. Add your own page's read-only methods here.
+    |
+    */
+
+    'permitted_methods' => [
+        'gotoPage',
+        'nextPage',
+        'previousPage',
+        'setPage',
+        'resetPage',
+        'sortTable',
+        'toggleTableReordering',
+        'resetTableFiltersForm',
+        'removeTableFilter',
+        'removeTableFilters',
+        'applyTableFilters',
+        'toggleTableColumn',
+        'openFilamentModal',
+        'closeFilamentModal',
+    ],
+
 ];
