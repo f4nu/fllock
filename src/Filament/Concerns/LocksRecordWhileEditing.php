@@ -175,7 +175,7 @@ trait LocksRecordWhileEditing {
      * than a 500.
      */
     public function updatingLocksRecordWhileEditing(string $property, mixed $value): void {
-        if (in_array($property, $this->fllockUnguardedProperties(), true)) {
+        if ($this->fllockIsUnguardedProperty($property)) {
             return;
         }
 
@@ -189,14 +189,45 @@ trait LocksRecordWhileEditing {
     }
 
     /**
-     * Properties the lock ignores: Livewire's own bookkeeping and the paginator,
-     * plus anything a host page adds. Reading a locked page still has to work --
-     * sorting, searching and paging are reads.
+     * Property paths the lock ignores.
+     *
+     * Reading a locked page has to keep working: searching, sorting, paging and
+     * switching tabs are reads, and so is typing into a form that is already
+     * disabled and whose save is refused anyway. Halting on those turns a
+     * read-only page into a page that throws.
      *
      * @return array<string>
      */
     protected function fllockUnguardedProperties(): array {
-        return ['isReadOnly', 'recordLockOwner', 'paginators', 'page', 'activeRelationManager'];
+        return [
+            'isReadOnly',
+            'recordLockOwner',
+            'data',
+            'mountedActions',
+            'mountedActionsData',
+            'mountedActionsArguments',
+            'activeRelationManager',
+            'activeTab',
+            'paginators',
+            'page',
+            'tableSearch',
+            'tableColumnSearches',
+            'tableFilters',
+            'tableSortColumn',
+            'tableSortDirection',
+            'toggledTableColumns',
+            'selectedTableRecords',
+        ];
+    }
+
+    protected function fllockIsUnguardedProperty(string $property): bool {
+        foreach ($this->fllockUnguardedProperties() as $unguarded) {
+            if ($property === $unguarded || str_starts_with($property, $unguarded . '.')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     protected function isRecordLockedByAnother(): bool {
