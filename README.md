@@ -115,14 +115,18 @@ Showing which rows are taken:
 use F4nu\Fllock\Filament\Concerns\EagerLoadsRecordLocks;  // on the list page
 use F4nu\Fllock\Filament\Tables\RecordLockIndicator;
 
-$table
-    // Tints the row and marks it with a stripe down the left.
-    ->recordClasses(RecordLockIndicator::rowClasses())
-    ->columns([
-        // And puts a lock before the value, naming the holder on hover.
-        RecordLockIndicator::on(TextColumn::make('title')),
-    ]);
+public static function table(Table $table): Table {
+    return RecordLockIndicator::mark($table->columns([...]));
+}
 ```
+
+That tints locked rows, marks them with a stripe, and puts a lock before the
+value of the column that identifies the row — naming the holder on hover.
+
+Which column that is, in order: whatever you name (`mark($table, 'game_title')`),
+else the table's own `recordTitleAttribute`, else the first text column. So the
+usual case needs no configuration and the override is one argument. If there is
+no column to hang it on, the row tint still says everything except who has it.
 
 The tint is amber rather than red, because red is what a table uses for
 something that went wrong and a row somebody is editing has not gone wrong; and
