@@ -3,6 +3,7 @@
 namespace F4nu\Fllock;
 
 use F4nu\Fllock\Filament\Resources\RecordLockResource;
+use F4nu\Fllock\Livewire\RecordLockObserver;
 use Filament\Contracts\Plugin;
 use Filament\Panel;
 use Illuminate\Support\Facades\Blade;
@@ -41,9 +42,16 @@ class FllockPlugin implements Plugin {
             fn (): HtmlString => new HtmlString(static::styles()),
         );
 
+        // By class, not by an alias registered in the service provider.
+        // Registering one calls into LivewireManager while providers are still
+        // booting, and if Livewire's own provider has not bound `livewire.finder`
+        // yet the application fails to boot. Not just the panel: every request,
+        // including the API, which is how this took a frontend down.
         $panel->renderHook(
             'panels::body.end',
-            fn (): HtmlString => new HtmlString(Blade::render('@livewire(\'fllock-observer\')')),
+            fn (): HtmlString => new HtmlString(
+                Blade::render('@livewire($component)', ['component' => RecordLockObserver::class]),
+            ),
         );
     }
 
