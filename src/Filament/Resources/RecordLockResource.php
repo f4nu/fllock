@@ -21,6 +21,17 @@ use Illuminate\Support\Facades\Gate;
 class RecordLockResource extends Resource {
     protected static ?string $model = RecordLock::class;
 
+    /**
+     * The lock table has no tenant column, so it cannot be scoped to one.
+     *
+     * Left scoped, a panel with tenancy puts a global scope on RecordLock that
+     * looks for a relationship to the tenant. There is none, and the scope
+     * throws on every query on the model -- including the eager load
+     * EagerLoadsRecordLocks runs on every table page, so the whole panel goes
+     * down, not just this screen.
+     */
+    protected static bool $isScopedToTenant = false;
+
     public static function getModelLabel(): string {
         return __('fllock::fllock.manager.label');
     }
