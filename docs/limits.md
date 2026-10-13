@@ -15,6 +15,11 @@ nav_order: 8
   record does not consult the lock and should not be assumed to. See
   [external writes](external-writes.md) for what protects you there.
 
+- **No tenancy in the lock manager.** In a panel with tenancy the manager lists every
+  lock, across tenants: the lock table has no tenant column to filter on. It sits behind
+  `manager.gate`; keep that for staff who may see all of it, or turn the manager off with
+  `manager.enabled`.
+
 ## Blind spots
 
 - **A component that writes only from a `Livewire.dispatch()` listener.** `__dispatch`
