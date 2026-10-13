@@ -13,6 +13,11 @@ One table, `record_locks`, holding a user, a morph to the locked thing, and time
 plenty of models are keyed by uuid or ulid; MySQL and MariaDB truncate those with a
 warning rather than an error, so every such record quietly shares one lock row.
 
+Keys are always compared as strings. An integer key bound as an integer works on MySQL
+and SQLite, which cast, and fails on Postgres, which does not (`character varying =
+integer`). The lock relation binds the record's key as a string on every path: loading
+it, eager loading it for a whole table page, and creating it.
+
 `user_id` cascades on delete. Deleting a member of staff must not fail because they left
 a lock behind.
 

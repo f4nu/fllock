@@ -82,6 +82,20 @@ it('holds a uuid key without truncating it', function () {
         ->toEqualCanonicalizing([$one->getKey(), $two->getKey()]);
 });
 
+it('eager loads locks for integer keys without comparing a string to an integer', function () {
+    $this->actingAs(editor('First'));
+    [$locked, $free] = Post::factory()->count(2)->create()->all();
+    $locked->lock();
+
+    // EagerLoadsRecordLocks does exactly this on every table page. On Postgres
+    // a raw integer list against the string lockable_id column is an error.
+    $posts = Post::query()->with('recordLock')->orderBy('id')->get();
+
+    expect($posts->firstWhere('id', $locked->id)->isLocked())->toBeTrue()
+        ->and($posts->firstWhere('id', $free->id)->recordLock)->toBeNull()
+        ->and(RecordLock::query()->value('lockable_id'))->toBe((string) $locked->id);
+});
+
 it('clears a record\'s locks when the record is deleted', function () {
     $this->actingAs(editor());
     $post = Post::factory()->create();
