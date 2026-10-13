@@ -57,6 +57,24 @@ class TestCase extends Orchestra {
 
     public function getEnvironmentSetUp($app): void {
         $app['config']->set('database.default', 'testing');
+
+        // SQLite and MySQL compare a string to an integer by casting; Postgres
+        // does not, which is the only place some of the key handling can fail.
+        // CI runs the suite against it as well (see tests.yml).
+        if (env('FLLOCK_TEST_DB') === 'pgsql') {
+            $app['config']->set('database.connections.testing', [
+                'driver' => 'pgsql',
+                'host' => env('DB_HOST', '127.0.0.1'),
+                'port' => env('DB_PORT', '5432'),
+                'database' => env('DB_DATABASE', 'fllock'),
+                'username' => env('DB_USERNAME', 'postgres'),
+                'password' => env('DB_PASSWORD', 'postgres'),
+                'charset' => 'utf8',
+                'prefix' => '',
+                'search_path' => 'public',
+                'sslmode' => 'prefer',
+            ]);
+        }
         // SQLite ignores foreign keys unless asked. Without this the cascade on
         // user_id is never exercised and a migration that forgot it would pass.
         $app['config']->set('database.connections.testing.foreign_key_constraints', true);

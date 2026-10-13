@@ -3,6 +3,7 @@
 namespace F4nu\Fllock\Models\Concerns;
 
 use F4nu\Fllock\Models\RecordLock;
+use F4nu\Fllock\Models\Relations\RecordLockRelation;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
 
 /**
@@ -24,13 +25,24 @@ trait HasRecordLock {
         static::deleted(function ($model): void {
             RecordLock::query()
                 ->where('lockable_type', $model->getMorphClass())
-                ->where('lockable_id', $model->getKey())
+                ->where('lockable_id', (string) $model->getKey())
                 ->delete();
         });
     }
 
     public function recordLock(): MorphOne {
-        return $this->morphOne(RecordLock::class, 'lockable')->latestOfMany();
+        $lock = $this->newRelatedInstance(RecordLock::class);
+        [$type, $id] = $this->getMorphs('lockable', null, null);
+
+        $relation = new RecordLockRelation(
+            $lock->newQuery(),
+            $this,
+            $lock->qualifyColumn($type),
+            $lock->qualifyColumn($id),
+            $this->getKeyName(),
+        );
+
+        return $relation->latestOfMany();
     }
 
     /** Seconds before an unrenewed lock lapses. Override per model. */
@@ -68,7 +80,7 @@ trait HasRecordLock {
     public function isLockedByAnotherUserFresh(): bool {
         $lock = RecordLock::query()
             ->where('lockable_type', $this->getMorphClass())
-            ->where('lockable_id', $this->getKey())
+            ->where('lockable_id', (string) $this->getKey())
             ->latest('id')
             ->first();
 
