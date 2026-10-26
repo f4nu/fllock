@@ -428,6 +428,8 @@ class LockingContract {
                     $record->lock();
 
                     $contract->actingAs($second);
+                    $contract->skipWithoutRowEdit($page);
+
                     Livewire::test($page)
                         ->call('mountAction', 'edit', [], [
                             'recordKey' => (string) $record->getKey(),
@@ -443,6 +445,7 @@ class LockingContract {
                     $record = $contract->makeRecord($page::getResource()::getModel());
 
                     $contract->actingAs($first);
+                    $contract->skipWithoutRowEdit($page);
 
                     $component = Livewire::test($page)->call('mountAction', 'edit', [], [
                         'recordKey' => (string) $record->getKey(),
@@ -705,6 +708,20 @@ class LockingContract {
      */
     public function probeColumn(Model $record): string {
         return array_key_first($record->getAttributes()) ?? 'id';
+    }
+
+    /**
+     * Skip a row-modal check on a table with no row `edit` action.
+     *
+     * Mounting an action that does not exist mounts nothing, so the refusal
+     * passes without proving anything and the heartbeat finds no lock to keep.
+     * A table written only through bulk actions skips these two checks and
+     * keeps the rest, rather than needing `except()`.
+     */
+    public function skipWithoutRowEdit(string $page): void {
+        if (Livewire::test($page)->instance()->getTable()->getAction('edit') === null) {
+            test()->markTestSkipped("{$page} has no row edit action");
+        }
     }
 
     public function openEditPage(string $page, Model $record, Model $as) {

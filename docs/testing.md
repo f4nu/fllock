@@ -48,6 +48,9 @@ For every record page, list page, relation manager and settings page it finds:
 Use it for a page that genuinely must not lock, and write down why at the call. An
 unexplained exclusion is how a surface goes quietly uncovered.
 
+A list page whose table has no row `edit` action, written only through bulk actions, needs
+no exclusion: the two row modal checks are skipped for it and the rest still run.
+
 ## Why it enumerates
 
 The first panel these guards were fitted to shipped broken. The traits went onto about
