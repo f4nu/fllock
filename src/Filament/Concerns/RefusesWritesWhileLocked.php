@@ -37,6 +37,10 @@ trait RefusesWritesWhileLocked {
             return;
         }
 
+        if ($this->fllockIsSchemaReadPermittedWhileLocked($methodName, $params)) {
+            return;
+        }
+
         if (! $this->fllockIsLockedByAnother()) {
             return;
         }
@@ -75,5 +79,33 @@ trait RefusesWritesWhileLocked {
         }
 
         return in_array($methodName, config('fllock.permitted_methods', []), true);
+    }
+
+    /**
+     * A field asking the server for something it needs to draw itself.
+     *
+     * Filament routes these through one endpoint, `callSchemaComponentMethod`,
+     * which also carries writes: `deleteUploadedFile` and
+     * `saveUploadedFileAttachmentAndGetUrl` go the same way. So the method name
+     * alone cannot say, and the method inside it is the one that counts.
+     *
+     * Refusing the reads did more than leave a locked page without its file
+     * previews. Every refusal sent the locked notice again, from a request
+     * whose snapshot predated the lock, so the named notice was replaced by the
+     * anonymous one; and FileUpload asked again each time the notice redrew the
+     * page, which on a locked edit page meant requests several times a second
+     * for as long as it stayed open.
+     *
+     * @param  array<mixed>  $params
+     */
+    protected function fllockIsSchemaReadPermittedWhileLocked(string $methodName, array $params): bool {
+        if ($methodName !== 'callSchemaComponentMethod') {
+            return false;
+        }
+
+        $method = $params[1] ?? null;
+
+        return is_string($method)
+            && in_array($method, config('fllock.permitted_schema_methods', []), true);
     }
 }

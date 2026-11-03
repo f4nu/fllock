@@ -118,6 +118,20 @@ every other call:
 
 These are the reads. Take one out and read only becomes broken rather than read only.
 
+Fields fetch what they need to draw themselves through one Filament endpoint,
+`callSchemaComponentMethod`, which carries writes too (`deleteUploadedFile`). So that
+endpoint is judged by the method inside it, against `permitted_schema_methods`:
+
+```php
+'permitted_schema_methods' => [
+    'getUploadedFiles', 'getOptionsForJs', 'getSearchResultsForJs', 'getLazyLoadedTabBadges', // ...
+],
+```
+
+Refusing these left a locked page without its file previews, and FileUpload asked
+again every time the refusal redrew the page, several requests a second for as long
+as the page stayed open.
+
 ## The sweep
 
 ```php
