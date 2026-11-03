@@ -147,4 +147,30 @@ return [
         'closeFilamentModal',
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Field reads allowed while locked
+    |--------------------------------------------------------------------------
+    |
+    | Methods a schema component calls on itself through
+    | `callSchemaComponentMethod` to render: file previews, select options and
+    | labels, tab badges. They read and never write, and a read-only page still
+    | has to draw its fields. Anything else through that endpoint is refused,
+    | `deleteUploadedFile` included.
+    |
+    */
+
+    'permitted_schema_methods' => [
+        'getUploadedFiles',
+        'getOptionLabel',
+        'getOptionsForJs',
+        'getOptionLabelsForJs',
+        'getSearchResultsForJs',
+        'getMentionSearchResultsForJs',
+        'getMentionLabelsForJs',
+        'getCustomBlockPreviewsForJs',
+        'getLazyLoadedTabBadges',
+        'getDeferredTabBadges',
+    ],
+
 ];
