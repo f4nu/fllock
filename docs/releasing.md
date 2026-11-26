@@ -15,6 +15,14 @@ there until it expired, minutes during which nobody else could edit a record its
 had already walked away from. Nothing is unloading, so the release is an ordinary
 Livewire request and it completes normally.
 
+The release goes to each component on the page, not as a broadcast, so a page whose
+record was just deleted can be skipped. Delete on an edit page redirects, and a release
+sent to that page on the way out could not be served: the record is gone, Filament
+refuses to hydrate the page, and the request 500s before any listener runs. The lock was
+deleted with the record, so there was nothing to release anyway. The observer reads that
+off the component's snapshot, where Livewire writes a model that no longer exists as
+`null`.
+
 A real unload, meaning a closed tab or a full page load, is best effort. The request may
 not survive it. That is what the timeout is for.
 

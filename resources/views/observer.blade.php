@@ -38,9 +38,26 @@
         //
         // Nothing is unloading, so this is an ordinary Livewire request and it
         // completes normally.
-        document.addEventListener('livewire:navigating', () => {
+        //
+        // Not when the page's record has just been deleted. Delete on an edit
+        // page redirects, and the release went out on the way: the page and
+        // its relation managers still point at a record that no longer exists,
+        // Filament refuses to hydrate them (a 500 for the page, a 404 for a
+        // relation manager), and Livewire drew its error modal over the list
+        // the redirect landed on. Nothing is lost by skipping it: the lock was
+        // deleted with the record (HasRecordLock), and a modal lock cannot be
+        // open while the delete confirmation is. Livewire serialises a model
+        // that no longer exists as null, which is how the snapshot tells us. A
+        // create page has a null record too, and holds no lock to release.
+        const release = () => {
+            if (Livewire.all().some((component) => component.snapshot?.data?.record === null)) {
+                return
+            }
+
             Livewire.dispatch('fllock::release')
-        })
+        }
+
+        document.addEventListener('livewire:navigating', release)
 
         // A real unload: closing the tab, or a full page load. The request may
         // not survive it, which is what the expiry is for -- this is the fast
@@ -48,9 +65,7 @@
         //
         // addEventListener, not window.onpagehide =: assigning would silently
         // replace whatever else the app has registered there.
-        window.addEventListener('pagehide', () => {
-            Livewire.dispatch('fllock::release')
-        }, { once: false })
+        window.addEventListener('pagehide', release, { once: false })
 
         // A modal closing releases the lock its form was holding. Filament
         // dispatches this for every modal, so the page decides whether it had
